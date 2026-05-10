@@ -41,4 +41,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/prometheus/garmin_exporter
+        - github.com/barnes-c/garmin_exporter
