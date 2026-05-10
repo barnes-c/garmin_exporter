@@ -9,7 +9,7 @@ linters:
       rules:
         no_exec_policy:
           files:
-            - '!$test'
+            - "!$test"
           deny:
             - pkg: os/exec
               desc: Using os/exec to run sub processes it not allowed by policy
@@ -41,4 +41,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/prometheus/node_exporter
+        - github.com/prometheus/garmin_exporter
