@@ -1,0 +1,21 @@
+ARG DISTROLESS_ARCH="amd64"
+FROM gcr.io/distroless/static-debian13:nonroot-${DISTROLESS_ARCH}
+LABEL maintainer="Christopher Barnes <github@barnes.biz>"
+LABEL org.opencontainers.image.authors="Christopher Barnes"
+LABEL org.opencontainers.image.vendor="Christopher Barnes"
+LABEL org.opencontainers.image.title="garmin_exporter"
+LABEL org.opencontainers.image.description="Prometheus exporter for hardware and OS metrics exposed by *NIX kernels"
+LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_exporter"
+LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
+LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin_exporter"
+LABEL org.opencontainers.image.licenses="Apache License 2.0"
+LABEL io.prometheus.image.variant="busybox"
+
+ARG ARCH="amd64"
+ARG OS="linux"
+
+COPY LICENSE NOTICE /
+COPY .build/${OS}-${ARCH}/garmin_exporter /bin/garmin_exporter
+
+EXPOSE      9100
+ENTRYPOINT  [ "/bin/garmin_exporter" ]
