@@ -1,7 +1,6 @@
 # Garmin exporter
 
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
-![bsd workflow](https://github.com/barnes-c/garmin_exporter/actions/workflows/bsd.yml/badge.svg)
 ![golangci-lint workflow](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)
 [![Docker Repository on Quay](https://quay.io/repository/barnes-c/garmin-exporter/status)][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/barnes-c/garmin-exporter.svg?maxAge=604800)][hub]
