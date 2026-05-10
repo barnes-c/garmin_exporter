@@ -1,4 +1,4 @@
-Configurable modular Prometheus exporter for various Garmin metrics.
+Configurable modular Prometheus exporter for Garmin Connect health and training metrics.
 Copyright 2026 Christopher Barnes
 
 This product includes software developed at

@@ -1,4 +1,17 @@
-// Package collector includes all individual collectors to gather and export system metrics.
+// Copyright Christopher Barnes
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package collector includes all individual collectors to gather and export garmin metrics.
 package collector
 
 import (
@@ -12,7 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Namespace defines the common namespace to be used by all metrics.
 const namespace = "garmin"
 
 var (
@@ -30,35 +42,48 @@ var (
 	)
 )
 
-const (
-	defaultEnabled  = true
-	defaultDisabled = false
-)
-
 var (
 	factories              = make(map[string]func(logger *slog.Logger) (Collector, error))
 	initiatedCollectorsMtx = sync.Mutex{}
 	initiatedCollectors    = make(map[string]Collector)
 	collectorState         = make(map[string]*bool)
-	forcedCollectors       = map[string]bool{} // collectors which have been explicitly enabled or disabled
+	forcedCollectors       = map[string]bool{}
 )
 
-func registerCollector(collector string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error)) {
-	var helpDefaultState string
+// Collector is the interface a collector has to implement.
+type Collector interface {
+	Update(ch chan<- prometheus.Metric) error
+}
+
+// ErrNoData indicates the collector found no data to collect, but had no other error.
+var ErrNoData = errors.New("collector returned no data")
+
+// IsNoDataError returns true if err is ErrNoData.
+func IsNoDataError(err error) bool {
+	return err == ErrNoData
+}
+
+// registerCollector registers a new collector with a --collector.<name> CLI flag.
+// Call this from an init() function in each collector file.
+func registerCollector(name string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error)) {
+	helpDefaultState := "disabled"
 	if isDefaultEnabled {
 		helpDefaultState = "enabled"
-	} else {
-		helpDefaultState = "disabled"
 	}
-
-	flagName := fmt.Sprintf("collector.%s", collector)
-	flagHelp := fmt.Sprintf("Enable the %s collector (default: %s).", collector, helpDefaultState)
+	flagName := fmt.Sprintf("collector.%s", name)
+	flagHelp := fmt.Sprintf("Enable the %s collector (default: %s).", name, helpDefaultState)
 	defaultValue := fmt.Sprintf("%v", isDefaultEnabled)
 
-	flag := kingpin.Flag(flagName, flagHelp).Default(defaultValue).Action(collectorFlagAction(collector)).Bool()
-	collectorState[collector] = flag
+	flag := kingpin.Flag(flagName, flagHelp).Default(defaultValue).Action(collectorFlagAction(name)).Bool()
+	collectorState[name] = flag
+	factories[name] = factory
+}
 
-	factories[collector] = factory
+func collectorFlagAction(name string) func(ctx *kingpin.ParseContext) error {
+	return func(ctx *kingpin.ParseContext) error {
+		forcedCollectors[name] = true
+		return nil
+	}
 }
 
 // GarminCollector implements the prometheus.Collector interface.
@@ -67,8 +92,8 @@ type GarminCollector struct {
 	logger     *slog.Logger
 }
 
-// DisableDefaultCollectors sets the collector state to false for all collectors which
-// have not been explicitly enabled on the command line.
+// DisableDefaultCollectors sets all collectors that have not been explicitly
+// enabled via CLI to disabled.
 func DisableDefaultCollectors() {
 	for c := range collectorState {
 		if _, ok := forcedCollectors[c]; !ok {
@@ -77,13 +102,7 @@ func DisableDefaultCollectors() {
 	}
 }
 
-func collectorFlagAction(collector string) func(ctx *kingpin.ParseContext) error {
-	return func(ctx *kingpin.ParseContext) error {
-		forcedCollectors[collector] = true
-		return nil
-	}
-}
-
+// NewGarminCollector creates a new GarminCollector.
 func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollector, error) {
 	f := make(map[string]bool)
 	for _, filter := range filters {
@@ -96,6 +115,7 @@ func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollecto
 		}
 		f[filter] = true
 	}
+
 	collectors := make(map[string]Collector)
 	initiatedCollectorsMtx.Lock()
 	defer initiatedCollectorsMtx.Unlock()
@@ -103,31 +123,31 @@ func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollecto
 		if !*enabled || (len(f) > 0 && !f[key]) {
 			continue
 		}
-		if collector, ok := initiatedCollectors[key]; ok {
-			collectors[key] = collector
+		if c, ok := initiatedCollectors[key]; ok {
+			collectors[key] = c
 		} else {
-			collector, err := factories[key](logger.With("collector", key))
+			c, err := factories[key](logger.With("collector", key))
 			if err != nil {
 				return nil, err
 			}
-			collectors[key] = collector
-			initiatedCollectors[key] = collector
+			collectors[key] = c
+			initiatedCollectors[key] = c
 		}
 	}
 	return &GarminCollector{Collectors: collectors, logger: logger}, nil
 }
 
-func (n GarminCollector) Describe(ch chan<- *prometheus.Desc) {
+func (gc GarminCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- scrapeDurationDesc
 	ch <- scrapeSuccessDesc
 }
 
-func (n GarminCollector) Collect(ch chan<- prometheus.Metric) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(n.Collectors))
-	for name, c := range n.Collectors {
+func (gc GarminCollector) Collect(ch chan<- prometheus.Metric) {
+	var wg sync.WaitGroup
+	wg.Add(len(gc.Collectors))
+	for name, c := range gc.Collectors {
 		go func(name string, c Collector) {
-			execute(name, c, ch, n.logger)
+			execute(name, c, ch, gc.logger)
 			wg.Done()
 		}(name, c)
 	}
@@ -138,83 +158,18 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 	begin := time.Now()
 	err := c.Update(ch)
 	duration := time.Since(begin)
-	var success float64
 
+	var success float64
 	if err != nil {
 		if IsNoDataError(err) {
 			logger.Debug("collector returned no data", "name", name, "duration_seconds", duration.Seconds(), "err", err)
 		} else {
 			logger.Error("collector failed", "name", name, "duration_seconds", duration.Seconds(), "err", err)
 		}
-		success = 0
 	} else {
 		logger.Debug("collector succeeded", "name", name, "duration_seconds", duration.Seconds())
 		success = 1
 	}
 	ch <- prometheus.MustNewConstMetric(scrapeDurationDesc, prometheus.GaugeValue, duration.Seconds(), name)
 	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, name)
-}
-
-type Collector interface {
-	Update(ch chan<- prometheus.Metric) error
-}
-
-type typedDesc struct {
-	desc      *prometheus.Desc
-	valueType prometheus.ValueType
-}
-
-func (d *typedDesc) mustNewConstMetric(value float64, labels ...string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(d.desc, d.valueType, value, labels...)
-}
-
-var ErrNoData = errors.New("collector returned no data")
-
-func IsNoDataError(err error) bool {
-	return err == ErrNoData
-}
-
-func pushMetric(ch chan<- prometheus.Metric, fieldDesc *prometheus.Desc, name string, value any, valueType prometheus.ValueType, labelValues ...string) {
-	var fVal float64
-	switch val := value.(type) {
-	case uint8:
-		fVal = float64(val)
-	case uint16:
-		fVal = float64(val)
-	case uint32:
-		fVal = float64(val)
-	case uint64:
-		fVal = float64(val)
-	case int64:
-		fVal = float64(val)
-	case *uint8:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint16:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint32:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint64:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *int64:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	default:
-		return
-	}
-
-	ch <- prometheus.MustNewConstMetric(fieldDesc, valueType, fVal, labelValues...)
 }

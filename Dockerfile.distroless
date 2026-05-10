@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_export
 LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.licenses="Apache License 2.0"
-LABEL io.prometheus.image.variant="busybox"
+LABEL io.prometheus.image.variant="distroless"
 
 ARG ARCH="amd64"
 ARG OS="linux"
