@@ -28,7 +28,7 @@ import (
 	"github.com/prometheus/common/promslog/flag"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/barnes-c/garmin"
+	garminconnect "github.com/barnes-c/go-garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -221,7 +221,7 @@ func main() {
 		collector.DisableDefaultCollectors()
 	}
 
-	garminClient := garmin.NewClient(*garminTokenFile)
+	garminClient := garminconnect.NewClient(*garminTokenFile)
 	if err := garminClient.Login(*garminUsername, *garminPassword); err != nil {
 		logger.Error("Garmin login failed", "err", err)
 		os.Exit(1)

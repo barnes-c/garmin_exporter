@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/barnes-c/garmin"
+	garminconnect "github.com/barnes-c/go-garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -56,12 +56,12 @@ var (
 	collectorState         = make(map[string]*bool)
 	forcedCollectors       = map[string]bool{} // collectors which have been explicitly enabled or disabled
 
-	garminClient  *garmin.Client
+	garminClient  *garminconnect.Client
 	activityLimit = 30
 )
 
 // SetClient sets the Garmin API client used by all collectors.
-func SetClient(c *garmin.Client) { garminClient = c }
+func SetClient(c *garminconnect.Client) { garminClient = c }
 
 // SetActivityLimit sets how many recent activities collectors should fetch.
 func SetActivityLimit(n int) { activityLimit = n }

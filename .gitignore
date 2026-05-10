@@ -39,3 +39,4 @@ collector/fixtures/sys/
 collector/fixtures/udev/
 
 /vendor
+garmin_token.json
