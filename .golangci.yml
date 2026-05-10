@@ -33,6 +33,9 @@ linters:
       - linters:
           - errcheck
         path: _test.go
+      - linters:
+          - unused
+        path: collector/collector.go
 formatters:
   enable:
     - goimports

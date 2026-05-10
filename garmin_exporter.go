@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/promslog/flag"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/barnes-c/garmin"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -201,6 +202,11 @@ func main() {
 			"runtime.gomaxprocs", "The target number of CPUs Go will run on (GOMAXPROCS)",
 		).Envar("GOMAXPROCS").Default("1").Int()
 		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10043")
+
+		garminUsername  = kingpin.Flag("garmin.username", "Garmin Connect username.").Envar("GARMIN_USERNAME").Required().String()
+		garminPassword  = kingpin.Flag("garmin.password", "Garmin Connect password.").Envar("GARMIN_PASSWORD").Required().String()
+		garminTokenFile = kingpin.Flag("garmin.token-file", "Path to cached OAuth2 token file.").Default("garmin_token.json").String()
+		garminLimit     = kingpin.Flag("garmin.activity-limit", "Number of recent activities to fetch.").Default("30").Int()
 	)
 
 	promslogConfig := &promslog.Config{}
@@ -214,6 +220,14 @@ func main() {
 	if *disableDefaultCollectors {
 		collector.DisableDefaultCollectors()
 	}
+
+	garminClient := garmin.NewClient(*garminTokenFile)
+	if err := garminClient.Login(*garminUsername, *garminPassword); err != nil {
+		logger.Error("Garmin login failed", "err", err)
+		os.Exit(1)
+	}
+	collector.SetClient(garminClient)
+	collector.SetActivityLimit(*garminLimit)
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
