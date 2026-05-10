@@ -16,6 +16,6 @@ ARG ARCH="amd64"
 ARG OS="linux"
 COPY .build/${OS}-${ARCH}/garmin_exporter /bin/garmin_exporter
 
-EXPOSE      9100
+EXPOSE      10043
 USER        nobody
 ENTRYPOINT  [ "/bin/garmin_exporter" ]

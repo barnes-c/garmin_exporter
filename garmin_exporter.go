@@ -200,7 +200,7 @@ func main() {
 		maxProcs = kingpin.Flag(
 			"runtime.gomaxprocs", "The target number of CPUs Go will run on (GOMAXPROCS)",
 		).Envar("GOMAXPROCS").Default("1").Int()
-		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":9100")
+		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10043")
 	)
 
 	promslogConfig := &promslog.Config{}
