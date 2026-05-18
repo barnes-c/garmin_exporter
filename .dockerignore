@@ -1,0 +1,6 @@
+.git
+.github
+Makefile
+*.test
+*_test.go
+garmin_token.json
