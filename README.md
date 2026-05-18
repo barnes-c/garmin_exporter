@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
 ![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)
-[![Docker Repository on Quay](https://quay.io/repository/barnes-c/garmin-exporter/status)][quay]
+[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-garmin__exporter-blue)][ghcr]
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)][goreportcard]
 
 Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and training metrics.
@@ -42,7 +42,7 @@ docker run -d \
   -e GARMIN_USERNAME=you@example.com \
   -e GARMIN_PASSWORD=yourpassword \
   -v garmin_data:/data \
-  quay.io/barnes-c/garmin-exporter:latest \
+  ghcr.io/barnes-c/garmin_exporter:latest \
   --garmin.token-file=/data/garmin_token.json
 ```
 
@@ -51,7 +51,7 @@ docker run -d \
 ```yaml
 services:
   garmin_exporter:
-    image: quay.io/barnes-c/garmin-exporter:latest
+    image: ghcr.io/barnes-c/garmin_exporter:latest
     ports:
       - "10043:10043"
     environment:
@@ -135,5 +135,5 @@ The exporter supports TLS and basic auth via the [exporter-toolkit web configura
 ./garmin_exporter --web.config.file=web-config.yml
 ```
 
-[quay]: https://quay.io/repository/barnes-c/garmin-exporter
+[ghcr]: https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter
 [goreportcard]: https://goreportcard.com/report/github.com/barnes-c/garmin_exporter
