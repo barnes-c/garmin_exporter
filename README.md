@@ -35,11 +35,13 @@ export GARMIN_PASSWORD=yourpassword
 ### Docker
 
 ```bash
+docker volume create garmin_data
+
 docker run -d \
   -p 10043:10043 \
   -e GARMIN_USERNAME=you@example.com \
   -e GARMIN_PASSWORD=yourpassword \
-  -v /data/garmin:/data \
+  -v garmin_data:/data \
   quay.io/barnes-c/garmin-exporter:latest \
   --garmin.token-file=/data/garmin_token.json
 ```
@@ -56,10 +58,13 @@ services:
       GARMIN_USERNAME: you@example.com
       GARMIN_PASSWORD: yourpassword
     volumes:
-      - ./data:/data
+      - garmin_data:/data
     command:
       - --garmin.token-file=/data/garmin_token.json
     restart: unless-stopped
+
+volumes:
+  garmin_data:
 ```
 
 ## Collectors
