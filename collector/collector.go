@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/barnes-c/go-garminconnect/garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -41,7 +42,16 @@ var (
 	initiatedCollectors    = make(map[string]Collector)
 	collectorState         = make(map[string]*bool)
 	forcedCollectors       = map[string]bool{} // collectors which have been explicitly enabled or disabled
+
+	garminClient  *garminconnect.Client
+	activityLimit = 30
 )
+
+// SetClient sets the Garmin API client used by all collectors.
+func SetClient(c *garminconnect.Client) { garminClient = c }
+
+// SetActivityLimit sets how many recent activities collectors should fetch.
+func SetActivityLimit(n int) { activityLimit = n }
 
 func registerCollector(collector string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error)) {
 	var helpDefaultState string
@@ -77,6 +87,11 @@ func DisableDefaultCollectors() {
 	}
 }
 
+// collectorFlagAction generates a new action function for the given collector
+// to track whether it has been explicitly enabled or disabled from the command line.
+// A new action function is needed for each collector flag because the ParseContext
+// does not contain information about which flag called the action.
+// See: https://github.com/alecthomas/kingpin/issues/294
 func collectorFlagAction(collector string) func(ctx *kingpin.ParseContext) error {
 	return func(ctx *kingpin.ParseContext) error {
 		forcedCollectors[collector] = true
@@ -84,6 +99,7 @@ func collectorFlagAction(collector string) func(ctx *kingpin.ParseContext) error
 	}
 }
 
+// NewGarminCollector creates a new GarminCollector.
 func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollector, error) {
 	f := make(map[string]bool)
 	for _, filter := range filters {
@@ -117,11 +133,13 @@ func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollecto
 	return &GarminCollector{Collectors: collectors, logger: logger}, nil
 }
 
+// Describe implements the prometheus.Collector interface.
 func (n GarminCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- scrapeDurationDesc
 	ch <- scrapeSuccessDesc
 }
 
+// Collect implements the prometheus.Collector interface.
 func (n GarminCollector) Collect(ch chan<- prometheus.Metric) {
 	wg := sync.WaitGroup{}
 	wg.Add(len(n.Collectors))
@@ -155,66 +173,15 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, name)
 }
 
+// Collector is the interface a collector has to implement.
 type Collector interface {
+	// Get new metrics and expose them via prometheus registry.
 	Update(ch chan<- prometheus.Metric) error
 }
 
-type typedDesc struct {
-	desc      *prometheus.Desc
-	valueType prometheus.ValueType
-}
-
-func (d *typedDesc) mustNewConstMetric(value float64, labels ...string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(d.desc, d.valueType, value, labels...)
-}
-
+// ErrNoData indicates the collector found no data to collect, but had no other error.
 var ErrNoData = errors.New("collector returned no data")
 
 func IsNoDataError(err error) bool {
 	return err == ErrNoData
-}
-
-func pushMetric(ch chan<- prometheus.Metric, fieldDesc *prometheus.Desc, name string, value any, valueType prometheus.ValueType, labelValues ...string) {
-	var fVal float64
-	switch val := value.(type) {
-	case uint8:
-		fVal = float64(val)
-	case uint16:
-		fVal = float64(val)
-	case uint32:
-		fVal = float64(val)
-	case uint64:
-		fVal = float64(val)
-	case int64:
-		fVal = float64(val)
-	case *uint8:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint16:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint32:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *uint64:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	case *int64:
-		if val == nil {
-			return
-		}
-		fVal = float64(*val)
-	default:
-		return
-	}
-
-	ch <- prometheus.MustNewConstMetric(fieldDesc, valueType, fVal, labelValues...)
 }

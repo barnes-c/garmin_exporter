@@ -1,16 +1,3 @@
-// Copyright 2015 The Prometheus Authors
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package main
 
 import (
@@ -28,6 +15,7 @@ import (
 	"github.com/prometheus/common/promslog/flag"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/barnes-c/go-garminconnect/garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -200,7 +188,12 @@ func main() {
 		maxProcs = kingpin.Flag(
 			"runtime.gomaxprocs", "The target number of CPUs Go will run on (GOMAXPROCS)",
 		).Envar("GOMAXPROCS").Default("1").Int()
-		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":9100")
+		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10043")
+
+		garminUsername  = kingpin.Flag("garmin.username", "Garmin Connect username.").Envar("GARMIN_USERNAME").Required().String()
+		garminPassword  = kingpin.Flag("garmin.password", "Garmin Connect password.").Envar("GARMIN_PASSWORD").Required().String()
+		garminTokenFile = kingpin.Flag("garmin.token-file", "Path to cached OAuth2 token file.").Default("garmin_token.json").String()
+		garminLimit     = kingpin.Flag("garmin.activity-limit", "Number of recent activities to fetch.").Default("30").Int()
 	)
 
 	promslogConfig := &promslog.Config{}
@@ -214,6 +207,14 @@ func main() {
 	if *disableDefaultCollectors {
 		collector.DisableDefaultCollectors()
 	}
+
+	garminClient := garminconnect.NewClient(*garminTokenFile)
+	if err := garminClient.Login(*garminUsername, *garminPassword); err != nil {
+		logger.Error("Garmin login failed", "err", err)
+		os.Exit(1)
+	}
+	collector.SetClient(garminClient)
+	collector.SetActivityLimit(*garminLimit)
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
