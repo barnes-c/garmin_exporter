@@ -6,9 +6,7 @@ on:
       - VERSION
       - .github/workflows/govulncheck.yml
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
   schedule:
     - cron: "33 2 * * *"
 
