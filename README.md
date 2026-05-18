@@ -2,6 +2,7 @@
 
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
 ![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)
+[![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)][releases]
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-garmin__exporter-blue)][ghcr]
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)][goreportcard]
 
@@ -135,5 +136,6 @@ The exporter supports TLS and basic auth via the [exporter-toolkit web configura
 ./garmin_exporter --web.config.file=web-config.yml
 ```
 
+[releases]: https://github.com/barnes-c/garmin_exporter/releases/latest
 [ghcr]: https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter
 [goreportcard]: https://goreportcard.com/report/github.com/barnes-c/garmin_exporter
