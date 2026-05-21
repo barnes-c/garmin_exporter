@@ -4,6 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+RUN mkdir /data
 
 ARG VERSION
 ARG COMMIT
@@ -31,6 +32,7 @@ LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.vendor="Christopher Barnes"
 
 COPY --from=builder /src/garmin_exporter /bin/garmin_exporter
+COPY --from=builder --chown=65532:65532 /data /data
 COPY LICENSE /
 
 EXPOSE      10043
