@@ -1,7 +1,7 @@
 # Garmin Exporter
 
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
-![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)
+[![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)][releases]
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-garmin__exporter-blue)][ghcr]
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)][goreportcard]
@@ -9,19 +9,6 @@
 Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and training metrics.
 
 Listens on port **10043** by default.
-
-## Authentication
-
-The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically — no re-login needed until the refresh token expires.
-
-Credentials are passed via flags or environment variables:
-
-| Flag | Env var | Default | Description |
-|------|---------|---------|-------------|
-| `--garmin.username` | `GARMIN_USERNAME` | *(required)* | Garmin Connect email address |
-| `--garmin.password` | `GARMIN_PASSWORD` | *(required)* | Garmin Connect password |
-| `--garmin.token-file` | — | `garmin_token.json` | Path to the cached OAuth2 token file |
-| `--garmin.activity-limit` | — | `30` | Number of recent activities to fetch per scrape |
 
 ## Usage
 
@@ -68,6 +55,19 @@ volumes:
   garmin_data:
 ```
 
+## Authentication
+
+The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically — no re-login needed until the refresh token expires.
+
+Credentials are passed via flags or environment variables:
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--garmin.username` | `GARMIN_USERNAME` | *(required)* | Garmin Connect email address |
+| `--garmin.password` | `GARMIN_PASSWORD` | *(required)* | Garmin Connect password |
+| `--garmin.token-file` | — | `garmin_token.json` | Path to the cached OAuth2 token file |
+| `--garmin.activity-limit` | — | `30` | Number of recent activities to fetch per scrape |
+
 ## Collectors
 
 All collectors are enabled by default. Individual collectors can be disabled with `--no-collector.<name>` or a specific set enabled with `--collector.<name>`.
@@ -92,6 +92,11 @@ All collectors are enabled by default. Individual collectors can be disabled wit
 | `cycling` | Cycling functional threshold power (FTP) in watts |
 | `devices` | Count of registered Garmin devices and an info metric per device (name, type, status) |
 | `goals` | Number of active fitness goals and total earned badges |
+| `personalrecords` | Personal records by type (e.g. fastest 5K, longest ride) in raw Garmin units |
+| `gear` | Registered equipment: retirement distance limit, notification threshold, and active status |
+| `trainingstatus` | Aggregated training status from the primary device: status code, weekly load, ACWR, and monthly aerobic/anaerobic load |
+| `lactatethreshold` | Latest lactate threshold: running speed (m/s), running HR, and cycling HR |
+| `runningtolerance` | Most recent running tolerance score and level |
 
 ### Disabled by default
 
