@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	registerCollector("lactatethreshold", defaultDisabled, newLactateThresholdCollector)
+	registerCollector("lactatethreshold", defaultEnabled, newLactateThresholdCollector)
 }
 
 type lactateThresholdCollector struct {

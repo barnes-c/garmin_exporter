@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	registerCollector("runningtolerance", defaultDisabled, newRunningToleranceCollector)
+	registerCollector("runningtolerance", defaultEnabled, newRunningToleranceCollector)
 }
 
 type runningToleranceCollector struct {
