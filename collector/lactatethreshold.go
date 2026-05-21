@@ -11,10 +11,10 @@ func init() {
 }
 
 type lactateThresholdCollector struct {
-	runningSpeedMPS    *prometheus.Desc
-	runningHeartRate   *prometheus.Desc
-	cyclingHeartRate   *prometheus.Desc
-	logger             *slog.Logger
+	runningSpeedMPS  *prometheus.Desc
+	runningHeartRate *prometheus.Desc
+	cyclingHeartRate *prometheus.Desc
+	logger           *slog.Logger
 }
 
 func newLactateThresholdCollector(logger *slog.Logger) (Collector, error) {

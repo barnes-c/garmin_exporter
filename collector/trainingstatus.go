@@ -12,14 +12,14 @@ func init() {
 }
 
 type trainingStatusCollector struct {
-	status           *prometheus.Desc
-	weeklyLoad       *prometheus.Desc
-	acwrPercent      *prometheus.Desc
-	acwrRatio        *prometheus.Desc
-	aerobicLowLoad   *prometheus.Desc
-	aerobicHighLoad  *prometheus.Desc
-	anaerobicLoad    *prometheus.Desc
-	logger           *slog.Logger
+	status          *prometheus.Desc
+	weeklyLoad      *prometheus.Desc
+	acwrPercent     *prometheus.Desc
+	acwrRatio       *prometheus.Desc
+	aerobicLowLoad  *prometheus.Desc
+	aerobicHighLoad *prometheus.Desc
+	anaerobicLoad   *prometheus.Desc
+	logger          *slog.Logger
 }
 
 func newTrainingStatusCollector(logger *slog.Logger) (Collector, error) {
