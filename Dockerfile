@@ -17,16 +17,18 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o garmin_exporter .
 
 FROM gcr.io/distroless/static-debian13:nonroot
+ARG DATE
+LABEL io.prometheus.image.variant="distroless"
 LABEL maintainer="Christopher Barnes <github@barnes.biz>"
 LABEL org.opencontainers.image.authors="Christopher Barnes"
-LABEL org.opencontainers.image.vendor="Christopher Barnes"
-LABEL org.opencontainers.image.title="garmin_exporter"
+LABEL org.opencontainers.image.created=${DATE}
 LABEL org.opencontainers.image.description="Exporter for Garmin Connect health and training metrics"
-LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_exporter"
-LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.licenses="Apache License 2.0"
-LABEL io.prometheus.image.variant="distroless"
+LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_exporter"
+LABEL org.opencontainers.image.title="garmin_exporter"
+LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
+LABEL org.opencontainers.image.vendor="Christopher Barnes"
 
 COPY --from=builder /src/garmin_exporter /bin/garmin_exporter
 COPY LICENSE /

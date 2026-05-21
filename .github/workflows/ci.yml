@@ -34,6 +34,37 @@ jobs:
           go-version: 1.26.x
       - run: make build
 
+  release:
+    name: Publish binaries
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, build]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: 1.26.x
+      - run: make build-all
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          DATE: ${{ github.event.repository.updated_at }}
+      - run: |
+          sha256sum garmin_exporter-* > checksums.txt
+      - uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          files: |
+            garmin_exporter-linux-amd64
+            garmin_exporter-linux-arm64
+            garmin_exporter-darwin-amd64
+            garmin_exporter-darwin-arm64
+            checksums.txt
+
   docker:
     name: Publish Docker image
     runs-on: ubuntu-latest
