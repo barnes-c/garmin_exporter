@@ -30,11 +30,12 @@ func newStressCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *stressCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	s, err := garminClient.AllDayStress(time.Now())
+	s, err := client.AllDayStress(time.Now())
 	if err != nil {
 		return err
 	}

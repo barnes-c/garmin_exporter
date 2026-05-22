@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/common/promslog/flag"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/barnes-c/go-garminconnect/garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -40,15 +39,18 @@ type handler struct {
 	includeExporterMetrics  bool
 	maxRequests             int
 	logger                  *slog.Logger
+	authState               *authState
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *authState) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
 		maxRequests:             maxRequests,
 		logger:                  logger,
+		authState:               authState,
 	}
+	h.exporterMetricsRegistry.MustRegister(h.authState)
 	if h.includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
 			promcollectors.NewProcessCollector(promcollectors.ProcessCollectorOpts{}),
@@ -155,7 +157,7 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 		)
 	} else {
 		handler = promhttp.HandlerFor(
-			r,
+			prometheus.Gatherers{h.exporterMetricsRegistry, r},
 			promhttp.HandlerOpts{
 				ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
 				ErrorHandling:       promhttp.ContinueOnError,
@@ -208,13 +210,11 @@ func main() {
 		collector.DisableDefaultCollectors()
 	}
 
-	garminClient := garminconnect.NewClient(*garminTokenFile)
-	if err := garminClient.Login(*garminUsername, *garminPassword); err != nil {
-		logger.Error("Garmin login failed", "err", err)
-		os.Exit(1)
-	}
-	collector.SetClient(garminClient)
 	collector.SetActivityLimit(*garminLimit)
+	authState := newAuthState()
+	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState)
+	go authManager.run()
+
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
@@ -223,7 +223,7 @@ func main() {
 	runtime.GOMAXPROCS(*maxProcs)
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	http.Handle(*metricsPath, newHandler(!*disableExporterMetrics, *maxRequests, logger))
+	http.Handle(*metricsPath, newHandler(!*disableExporterMetrics, *maxRequests, logger, authState))
 	if *metricsPath != "/" {
 		landingConfig := web.LandingConfig{
 			Name:        "Garmin Exporter",

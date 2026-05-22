@@ -29,18 +29,19 @@ func newGoalsCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *goalsCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	goals, err := garminClient.Goals("active", 0, 100)
+	goals, err := client.Goals("active", 0, 100)
 	if err != nil {
 		c.logger.Debug("goals unavailable", "err", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.activeGoals, prometheus.GaugeValue, float64(len(goals)))
 	}
 
-	badges, err := garminClient.EarnedBadges()
+	badges, err := client.EarnedBadges()
 	if err != nil {
 		c.logger.Debug("badges unavailable", "err", err)
 	} else {

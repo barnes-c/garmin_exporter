@@ -34,11 +34,12 @@ func newHeartRateCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	hr, err := garminClient.HeartRates(time.Now())
+	hr, err := client.HeartRates(time.Now())
 	if err != nil {
 		return err
 	}

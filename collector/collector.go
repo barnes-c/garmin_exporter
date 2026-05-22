@@ -43,12 +43,25 @@ var (
 	collectorState         = make(map[string]*bool)
 	forcedCollectors       = map[string]bool{} // collectors which have been explicitly enabled or disabled
 
-	garminClient  *garminconnect.Client
-	activityLimit = 30
+	garminClientMtx sync.RWMutex
+	garminClient    *garminconnect.Client
+	activityLimit   = 30
 )
 
 // SetClient sets the Garmin API client used by all collectors.
-func SetClient(c *garminconnect.Client) { garminClient = c }
+func SetClient(c *garminconnect.Client) {
+	garminClientMtx.Lock()
+	defer garminClientMtx.Unlock()
+
+	garminClient = c
+}
+
+func getClient() *garminconnect.Client {
+	garminClientMtx.RLock()
+	defer garminClientMtx.RUnlock()
+
+	return garminClient
+}
 
 // SetActivityLimit sets how many recent activities collectors should fetch.
 func SetActivityLimit(n int) { activityLimit = n }

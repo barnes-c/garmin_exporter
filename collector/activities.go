@@ -48,15 +48,16 @@ func newActivitiesCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *activitiesCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	if total, err := garminClient.ActivityCount(); err == nil {
+	if total, err := client.ActivityCount(); err == nil {
 		ch <- prometheus.MustNewConstMetric(c.lifetimeCount, prometheus.GaugeValue, float64(total))
 	}
 
-	activities, err := garminClient.Activities(activityLimit)
+	activities, err := client.Activities(activityLimit)
 	if err != nil {
 		return err
 	}

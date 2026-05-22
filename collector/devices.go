@@ -33,11 +33,12 @@ func newDevicesCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *devicesCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	devices, err := garminClient.Devices()
+	devices, err := client.Devices()
 	if err != nil {
 		return err
 	}

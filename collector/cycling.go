@@ -27,11 +27,12 @@ func newCyclingCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *cyclingCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	result, err := garminClient.CyclingFTP()
+	result, err := client.CyclingFTP()
 	if err != nil {
 		return err
 	}

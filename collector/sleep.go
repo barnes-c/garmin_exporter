@@ -64,12 +64,13 @@ func newSleepCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 	now := time.Now()
 
-	s, err := garminClient.SleepData(now)
+	s, err := client.SleepData(now)
 	if err != nil {
 		return err
 	}
@@ -105,7 +106,7 @@ func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
 		g(c.spO2Low, dto.SpO2LowReadingPercent)
 	}
 
-	h, err := garminClient.HRVData(now)
+	h, err := client.HRVData(now)
 	if err != nil {
 		c.logger.Debug("HRV data unavailable", "err", err)
 		return nil

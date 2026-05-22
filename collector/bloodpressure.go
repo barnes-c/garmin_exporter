@@ -32,12 +32,13 @@ func newBloodPressureCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *bloodPressureCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	bp, err := garminClient.BloodPressure(now.AddDate(0, -1, 0), now)
+	bp, err := client.BloodPressure(now.AddDate(0, -1, 0), now)
 	if err != nil {
 		return err
 	}

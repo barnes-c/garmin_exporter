@@ -26,11 +26,12 @@ func newPersonalRecordsCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *personalRecordsCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	records, err := garminClient.PersonalRecords()
+	records, err := client.PersonalRecords()
 	if err != nil {
 		return err
 	}
