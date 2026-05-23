@@ -88,10 +88,11 @@ func newWellnessCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *wellnessCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
-	s, err := garminClient.UserSummary(time.Now())
+	s, err := client.UserSummary(time.Now())
 	if err != nil {
 		return err
 	}

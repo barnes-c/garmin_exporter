@@ -29,11 +29,12 @@ func newGolfCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *golfCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	scorecards, err := garminClient.GolfSummary(0, 1)
+	scorecards, err := client.GolfSummary(0, 1)
 	if err != nil {
 		return err
 	}

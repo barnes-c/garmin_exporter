@@ -32,11 +32,12 @@ func newIntensityCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *intensityCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	im, err := garminClient.IntensityMinutes(time.Now())
+	im, err := client.IntensityMinutes(time.Now())
 	if err != nil {
 		return err
 	}

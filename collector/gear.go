@@ -33,16 +33,17 @@ func newGearCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *gearCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	summary, err := garminClient.UserSummary(time.Now())
+	summary, err := client.UserSummary(time.Now())
 	if err != nil {
 		return err
 	}
 
-	gear, err := garminClient.Gear(summary.UserProfileID)
+	gear, err := client.Gear(summary.UserProfileID)
 	if err != nil {
 		return err
 	}

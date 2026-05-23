@@ -42,11 +42,12 @@ func newBodyCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *bodyCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	resp, err := garminClient.DailyWeighIns(time.Now())
+	resp, err := client.DailyWeighIns(time.Now())
 	if err != nil {
 		return err
 	}

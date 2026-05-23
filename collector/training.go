@@ -54,7 +54,8 @@ func newTrainingCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 	now := time.Now()
@@ -63,7 +64,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
 	}
 
-	readiness, err := garminClient.TrainingReadiness(now)
+	readiness, err := client.TrainingReadiness(now)
 	if err != nil {
 		c.logger.Debug("training readiness unavailable", "err", err)
 	} else {
@@ -84,7 +85,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	metrics, err := garminClient.MaxMetrics(now.AddDate(0, 0, -30), now)
+	metrics, err := client.MaxMetrics(now.AddDate(0, 0, -30), now)
 	if err != nil {
 		c.logger.Debug("max metrics unavailable", "err", err)
 	} else {
@@ -107,7 +108,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	preds, err := garminClient.RacePredictions()
+	preds, err := client.RacePredictions()
 	if err != nil {
 		c.logger.Debug("race predictions unavailable", "err", err)
 	} else if preds != nil {
@@ -125,7 +126,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	endurance, err := garminClient.EnduranceScore(now.AddDate(0, 0, -7), now)
+	endurance, err := client.EnduranceScore(now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("endurance score unavailable", "err", err)
 	} else {
@@ -140,7 +141,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	hill, err := garminClient.HillScore(now.AddDate(0, 0, -7), now)
+	hill, err := client.HillScore(now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("hill score unavailable", "err", err)
 	} else {

@@ -57,7 +57,9 @@ volumes:
 
 ## Authentication
 
-The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically — no re-login needed until the refresh token expires.
+The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically -- no re-login needed until the refresh token expires.
+
+If login fails, the exporter keeps serving metrics and retries in the background with exponential backoff. The retry delay starts at 1 minute and grows up to 3 hours. While login is failing, Garmin data collectors report no data until a later login attempt succeeds.
 
 Credentials are passed via flags or environment variables:
 
@@ -67,6 +69,13 @@ Credentials are passed via flags or environment variables:
 | `--garmin.password` | `GARMIN_PASSWORD` | *(required)* | Garmin Connect password |
 | `--garmin.token-file` | — | `garmin_token.json` | Path to the cached OAuth2 token file |
 | `--garmin.activity-limit` | — | `30` | Number of recent activities to fetch per scrape |
+
+Authentication status is exposed with these metrics:
+
+| Metric | Description |
+|--------|-------------|
+| `garmin_auth_login_success` | `1` if the most recent login attempt succeeded, `0` otherwise |
+| `garmin_auth_next_retry_timestamp_seconds` | Unix timestamp of the next scheduled login attempt, or `0` when no retry is scheduled |
 
 ## Collectors
 

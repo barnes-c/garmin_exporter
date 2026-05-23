@@ -42,12 +42,13 @@ func newBodyCompositionCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *bodyCompositionCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	bc, err := garminClient.BodyComposition(now.AddDate(0, 0, -30), now)
+	bc, err := client.BodyComposition(now.AddDate(0, 0, -30), now)
 	if err != nil {
 		return err
 	}

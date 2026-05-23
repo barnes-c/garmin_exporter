@@ -30,12 +30,13 @@ func newRunningToleranceCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *runningToleranceCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	entries, err := garminClient.RunningTolerance(now.AddDate(0, 0, -7), now)
+	entries, err := client.RunningTolerance(now.AddDate(0, 0, -7), now)
 	if err != nil {
 		return err
 	}

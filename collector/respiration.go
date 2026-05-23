@@ -32,11 +32,12 @@ func newRespirationCollector(logger *slog.Logger) (Collector, error) {
 }
 
 func (c *respirationCollector) Update(ch chan<- prometheus.Metric) error {
-	if garminClient == nil {
+	client := getClient()
+	if client == nil {
 		return ErrNoData
 	}
 
-	r, err := garminClient.Respiration(time.Now())
+	r, err := client.Respiration(time.Now())
 	if err != nil {
 		return err
 	}
