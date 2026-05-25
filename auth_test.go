@@ -103,10 +103,10 @@ func TestAuthManagerBackoffDelayIsCapped(t *testing.T) {
 			return nil, errors.New("rate limited")
 		},
 		setClient: func(client *garminconnect.Client) {},
-		state:  state,
-		delay:  time.Hour,
-		now:    func() time.Time { return now },
-		jitter: func() time.Duration { return 0 },
+		state:     state,
+		delay:     time.Hour,
+		now:       func() time.Time { return now },
+		jitter:    func() time.Duration { return 0 },
 	}
 
 	for _, want := range []time.Duration{time.Hour, 2 * time.Hour, 3 * time.Hour, 3 * time.Hour} {
