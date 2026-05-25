@@ -87,13 +87,14 @@ type authManager struct {
 	setClient func(*garminconnect.Client)
 	state     *authState
 	backoff   *backoff.Backoff
+	reauthCh  <-chan struct{}
 
 	// For testing.
 	now   func() time.Time
 	sleep func(time.Duration)
 }
 
-func newAuthManager(username, password, tokenFile string, logger *slog.Logger, state *authState) *authManager {
+func newAuthManager(username, password, tokenFile string, logger *slog.Logger, state *authState, reauthCh <-chan struct{}) *authManager {
 	return &authManager{
 		username: username,
 		password: password,
@@ -113,8 +114,9 @@ func newAuthManager(username, password, tokenFile string, logger *slog.Logger, s
 			Factor: authBackoffFactor,
 			Jitter: true,
 		},
-		now:   time.Now,
-		sleep: time.Sleep,
+		reauthCh: reauthCh,
+		now:      time.Now,
+		sleep:    time.Sleep,
 	}
 }
 
@@ -122,9 +124,20 @@ func (m *authManager) run() {
 	for {
 		delay, ok := m.attemptLogin()
 		if ok {
-			return
+			break
 		}
 		m.sleep(delay)
+	}
+	for range m.reauthCh {
+		m.logger.Info("re-authenticating due to stale token")
+		m.backoff.Reset()
+		for {
+			delay, ok := m.attemptLogin()
+			if ok {
+				break
+			}
+			m.sleep(delay)
+		}
 	}
 }
 

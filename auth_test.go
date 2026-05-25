@@ -134,6 +134,46 @@ func TestAuthManagerBackoffDelayIsCapped(t *testing.T) {
 	}
 }
 
+func TestAuthManagerRunReauthOnSignal(t *testing.T) {
+	reauthCh := make(chan struct{}, 1)
+	loginCount := 0
+	second := make(chan struct{})
+	client := &garminconnect.Client{}
+
+	manager := authManager{
+		username: "user",
+		password: "pass",
+		logger:   slog.Default(),
+		login: func(username, password string) (*garminconnect.Client, error) {
+			loginCount++
+			if loginCount == 2 {
+				close(second)
+			}
+			return client, nil
+		},
+		setClient: func(*garminconnect.Client) {},
+		state:     newAuthState(),
+		backoff: &backoff.Backoff{
+			Min: time.Millisecond, Max: time.Millisecond, Factor: 1,
+		},
+		reauthCh: reauthCh,
+		now:      time.Now,
+		sleep:    func(time.Duration) {},
+	}
+
+	go manager.run()
+	reauthCh <- struct{}{}
+
+	select {
+	case <-second:
+	case <-time.After(time.Second):
+		t.Fatal("re-login not triggered after reauth signal")
+	}
+	if loginCount != 2 {
+		t.Fatalf("expected 2 login calls, got %d", loginCount)
+	}
+}
+
 func TestAuthStateCollectsMetrics(t *testing.T) {
 	state := newAuthState()
 	state.setLoginFailure(time.Unix(1234, 0))
