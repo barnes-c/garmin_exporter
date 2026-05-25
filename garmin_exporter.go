@@ -211,8 +211,10 @@ func main() {
 	}
 
 	collector.SetActivityLimit(*garminLimit)
+	reauthCh := make(chan struct{}, 1)
+	collector.SetReauthChannel(reauthCh)
 	authState := newAuthState()
-	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState)
+	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh)
 	go authManager.run()
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())

@@ -46,7 +46,31 @@ var (
 	garminClientMtx sync.RWMutex
 	garminClient    *garminconnect.Client
 	activityLimit   = 30
+
+	reauthMu sync.Mutex
+	reauthCh chan<- struct{}
 )
+
+// SetReauthChannel registers a buffered channel that receives a signal
+// whenever a collector encounters ErrUnauthorized, triggering a re-login.
+func SetReauthChannel(ch chan<- struct{}) {
+	reauthMu.Lock()
+	defer reauthMu.Unlock()
+	reauthCh = ch
+}
+
+func signalReauth() {
+	reauthMu.Lock()
+	ch := reauthCh
+	reauthMu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default: // already signalled, don't block
+	}
+}
 
 // SetClient sets the Garmin API client used by all collectors.
 func SetClient(c *garminconnect.Client) {
@@ -176,6 +200,9 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 			logger.Debug("collector returned no data", "name", name, "duration_seconds", duration.Seconds(), "err", err)
 		} else {
 			logger.Error("collector failed", "name", name, "duration_seconds", duration.Seconds(), "err", err)
+			if errors.Is(err, garminconnect.ErrUnauthorized) {
+				signalReauth()
+			}
 		}
 		success = 0
 	} else {
