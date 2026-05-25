@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
-	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -29,13 +28,10 @@ func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
 		setClient: func(client *garminconnect.Client) {
 			installedClient = client
 		},
-		state: state,
-		backoff: &backoff.Backoff{
-			Min:    time.Minute,
-			Max:    3 * time.Hour,
-			Factor: 2,
-		},
-		now: func() time.Time { return now },
+		state:  state,
+		delay:  authBackoffMin,
+		now:    func() time.Time { return now },
+		jitter: func() time.Duration { return 0 },
 	}
 
 	delay, ok := manager.attemptLogin()
@@ -72,13 +68,10 @@ func TestAuthManagerLoginSuccessInstallsClient(t *testing.T) {
 		setClient: func(client *garminconnect.Client) {
 			installedClient = client
 		},
-		state: state,
-		backoff: &backoff.Backoff{
-			Min:    time.Minute,
-			Max:    3 * time.Hour,
-			Factor: 2,
-		},
-		now: time.Now,
+		state:  state,
+		delay:  authBackoffMin,
+		now:    time.Now,
+		jitter: func() time.Duration { return 0 },
 	}
 
 	delay, ok := manager.attemptLogin()
@@ -110,13 +103,10 @@ func TestAuthManagerBackoffDelayIsCapped(t *testing.T) {
 			return nil, errors.New("rate limited")
 		},
 		setClient: func(client *garminconnect.Client) {},
-		state:     state,
-		backoff: &backoff.Backoff{
-			Min:    time.Hour,
-			Max:    3 * time.Hour,
-			Factor: 2,
-		},
-		now: func() time.Time { return now },
+		state:  state,
+		delay:  time.Hour,
+		now:    func() time.Time { return now },
+		jitter: func() time.Duration { return 0 },
 	}
 
 	for _, want := range []time.Duration{time.Hour, 2 * time.Hour, 3 * time.Hour, 3 * time.Hour} {
@@ -153,12 +143,11 @@ func TestAuthManagerRunReauthOnSignal(t *testing.T) {
 		},
 		setClient: func(*garminconnect.Client) {},
 		state:     newAuthState(),
-		backoff: &backoff.Backoff{
-			Min: time.Millisecond, Max: time.Millisecond, Factor: 1,
-		},
-		reauthCh: reauthCh,
-		now:      time.Now,
-		sleep:    func(time.Duration) {},
+		delay:     time.Millisecond,
+		reauthCh:  reauthCh,
+		now:       time.Now,
+		sleep:     func(time.Duration) {},
+		jitter:    func() time.Duration { return 0 },
 	}
 
 	go manager.run()

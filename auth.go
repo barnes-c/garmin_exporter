@@ -2,11 +2,11 @@ package main
 
 import (
 	"log/slog"
+	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
-	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/barnes-c/garmin_exporter/collector"
@@ -86,12 +86,13 @@ type authManager struct {
 	login     func(username, password string) (*garminconnect.Client, error)
 	setClient func(*garminconnect.Client)
 	state     *authState
-	backoff   *backoff.Backoff
+	delay     time.Duration
 	reauthCh  <-chan struct{}
 
 	// For testing.
-	now   func() time.Time
-	sleep func(time.Duration)
+	now    func() time.Time
+	sleep  func(time.Duration)
+	jitter func() time.Duration
 }
 
 func newAuthManager(username, password, tokenFile string, logger *slog.Logger, state *authState, reauthCh <-chan struct{}) *authManager {
@@ -108,16 +109,22 @@ func newAuthManager(username, password, tokenFile string, logger *slog.Logger, s
 		},
 		setClient: collector.SetClient,
 		state:     state,
-		backoff: &backoff.Backoff{
-			Min:    authBackoffMin,
-			Max:    authBackoffMax,
-			Factor: authBackoffFactor,
-			Jitter: true,
-		},
-		reauthCh: reauthCh,
-		now:      time.Now,
-		sleep:    time.Sleep,
+		delay:     authBackoffMin,
+		reauthCh:  reauthCh,
+		now:       time.Now,
+		sleep:     time.Sleep,
+		jitter:    func() time.Duration { return time.Duration(rand.Int63n(int64(authBackoffMin))) },
 	}
+}
+
+func (m *authManager) nextDelay() time.Duration {
+	d := m.delay + m.jitter()
+	m.delay = min(m.delay*authBackoffFactor, authBackoffMax)
+	return d
+}
+
+func (m *authManager) resetDelay() {
+	m.delay = authBackoffMin
 }
 
 func (m *authManager) run() {
@@ -130,7 +137,7 @@ func (m *authManager) run() {
 	}
 	for range m.reauthCh {
 		m.logger.Info("re-authenticating due to stale token")
-		m.backoff.Reset()
+		m.resetDelay()
 		for {
 			delay, ok := m.attemptLogin()
 			if ok {
@@ -146,12 +153,12 @@ func (m *authManager) attemptLogin() (time.Duration, bool) {
 	if err == nil {
 		m.setClient(garminClient)
 		m.state.setLoginSuccess()
-		m.backoff.Reset()
+		m.resetDelay()
 		m.logger.Info("Garmin login succeeded")
 		return 0, true
 	}
 
-	delay := m.backoff.Duration()
+	delay := m.nextDelay()
 	nextRetry := m.now().Add(delay)
 	m.setClient(nil)
 	m.state.setLoginFailure(nextRetry)
