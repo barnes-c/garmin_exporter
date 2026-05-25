@@ -11,7 +11,7 @@ ARG COMMIT
 ARG BRANCH
 ARG DATE
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X github.com/prometheus/common/version.Version=${VERSION} \
+    -ldflags "-s -w -X github.com/prometheus/common/version.Version=${VERSION} \
     -X github.com/prometheus/common/version.Revision=${COMMIT} \
     -X github.com/prometheus/common/version.Branch=${BRANCH} \
     -X github.com/prometheus/common/version.BuildDate=${DATE}" \
