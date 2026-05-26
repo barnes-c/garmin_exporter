@@ -6,6 +6,7 @@ DATE      := $(shell date -u +%Y%m%d-%H:%M:%S)
 BUILDUSER := $(shell id -un)@$(shell hostname -s)
 
 LDFLAGS := \
+  -s -w \
   -X github.com/prometheus/common/version.Version=$(VERSION) \
   -X github.com/prometheus/common/version.Revision=$(COMMIT) \
   -X github.com/prometheus/common/version.Branch=$(BRANCH) \
