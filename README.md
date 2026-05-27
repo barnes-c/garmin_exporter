@@ -145,6 +145,57 @@ make build
 make test
 ```
 
+## OTLP metrics push
+
+The exporter can optionally push metrics to any [OpenTelemetry](https://opentelemetry.io/) collector via OTLP, in addition to the standard Prometheus pull endpoint. OTLP push is **disabled by default** and activates when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+
+The [OTel Prometheus bridge](https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/prometheus) reads from the existing Prometheus registries — no instrumentation changes needed.
+
+### Configuration
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--otlp.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(disabled)* | OTLP collector endpoint (e.g. `localhost:4317`). Enables OTLP push when set. |
+| `--otlp.protocol` | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Transport protocol: `grpc` or `http/protobuf` |
+| `--otlp.interval` | — | `1h` | OTLP push interval. Each push triggers a full Garmin API fetch, so keep this high to avoid rate limiting. |
+
+The OTLP exporters also respect the standard `OTEL_EXPORTER_OTLP_*` environment variables for headers, TLS certificates, compression, and timeouts. See the [OTel specification](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) for the full list.
+
+### Examples
+
+```bash
+# gRPC to a local collector
+OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
+  ./garmin_exporter
+
+# HTTP with authentication
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example.com \
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_TOKEN" \
+  ./garmin_exporter
+```
+
+### Docker Compose
+
+```yaml
+services:
+  garmin_exporter:
+    image: barnesbiz/garmin_exporter:latest
+    ports:
+      - "10045:10045"
+    environment:
+      GARMIN_USERNAME: you@example.com
+      GARMIN_PASSWORD: yourpassword
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.example.com
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer YOUR_TOKEN"
+    volumes:
+      - garmin_data:/data
+    command:
+      - --garmin.token-file=/data/garmin_token.json
+    restart: unless-stopped
+```
+
 ## TLS
 
 The exporter supports TLS and basic auth via the [exporter-toolkit web configuration](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md):
