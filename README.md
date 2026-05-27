@@ -3,8 +3,6 @@
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
 [![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)][releases]
-[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-garmin__exporter-blue)][ghcr]
-[![Docker Hub](https://img.shields.io/docker/v/barnesbiz/garmin_exporter?label=dockerhub)][dockerhub]
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)][goreportcard]
 
 Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and training metrics.
