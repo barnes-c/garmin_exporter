@@ -4,6 +4,7 @@
 [![golangci-lint](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/golangci-lint.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)][releases]
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-garmin__exporter-blue)][ghcr]
+[![Docker Hub](https://img.shields.io/docker/v/barnesbiz/garmin_exporter?label=dockerhub)][dockerhub]
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)][goreportcard]
 
 Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and training metrics.
@@ -30,16 +31,18 @@ docker run -d \
   -e GARMIN_USERNAME=you@example.com \
   -e GARMIN_PASSWORD=yourpassword \
   -v garmin_data:/data \
-  ghcr.io/barnes-c/garmin_exporter:latest \
+  barnesbiz/garmin_exporter:latest \
   --garmin.token-file=/data/garmin_token.json
 ```
+
+Images are available on both [Docker Hub][dockerhub] (`barnesbiz/garmin_exporter`) and [GitHub Container Registry][ghcr] (`ghcr.io/barnes-c/garmin_exporter`).
 
 ### Docker Compose
 
 ```yaml
 services:
   garmin_exporter:
-    image: ghcr.io/barnes-c/garmin_exporter:latest
+    image: barnesbiz/garmin_exporter:latest
     ports:
       - "10043:10043"
     environment:
@@ -152,4 +155,5 @@ The exporter supports TLS and basic auth via the [exporter-toolkit web configura
 
 [releases]: https://github.com/barnes-c/garmin_exporter/releases/latest
 [ghcr]: https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter
+[dockerhub]: https://hub.docker.com/r/barnesbiz/garmin_exporter
 [goreportcard]: https://goreportcard.com/report/github.com/barnes-c/garmin_exporter
