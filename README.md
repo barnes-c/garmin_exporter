@@ -9,6 +9,8 @@ Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and 
 
 Listens on port **10045** by default.
 
+> **Note:** Each scrape calls the Garmin Connect API. Since health data updates at most a few times per day, a scrape interval of 6h–12h is recommended to avoid hammering Garmin's doors.
+
 ## Usage
 
 ### Binary
