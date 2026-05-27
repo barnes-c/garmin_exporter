@@ -190,7 +190,7 @@ func main() {
 		maxProcs = kingpin.Flag(
 			"runtime.gomaxprocs", "The target number of CPUs Go will run on (GOMAXPROCS)",
 		).Envar("GOMAXPROCS").Default("1").Int()
-		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10043")
+		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
 
 		garminUsername  = kingpin.Flag("garmin.username", "Garmin Connect username.").Envar("GARMIN_USERNAME").Required().String()
 		garminPassword  = kingpin.Flag("garmin.password", "Garmin Connect password.").Envar("GARMIN_PASSWORD").Required().String()

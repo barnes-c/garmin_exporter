@@ -35,5 +35,5 @@ COPY --from=builder /src/garmin_exporter /bin/garmin_exporter
 COPY --from=builder --chown=65532:65532 /data /data
 COPY LICENSE /
 
-EXPOSE      10043
+EXPOSE      10045
 ENTRYPOINT  [ "/bin/garmin_exporter" ]
