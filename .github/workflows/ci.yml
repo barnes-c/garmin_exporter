@@ -4,7 +4,6 @@ on:
   push:
     branches: [main, master, "release-*"]
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -69,7 +68,7 @@ jobs:
   docker:
     name: Publish Docker image
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [test, build]
     permissions:
       contents: read
