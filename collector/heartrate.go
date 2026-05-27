@@ -39,8 +39,7 @@ func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
 		return ErrNoData
 	}
 
-	today := time.Now()
-	hr, err := client.HeartRates(today)
+	hr, err := client.HeartRates(time.Now())
 	if err != nil {
 		return err
 	}
@@ -57,7 +56,7 @@ func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
 	}
 
 	var maxBPM int
-	if acts, err := client.ActivitiesByDate(today, today, ""); err == nil {
+	if acts, err := client.Activities(activityLimit); err == nil {
 		for _, a := range acts {
 			if int(a.MaxHR) > maxBPM {
 				maxBPM = int(a.MaxHR)
