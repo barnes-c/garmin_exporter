@@ -39,7 +39,8 @@ func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
 		return ErrNoData
 	}
 
-	hr, err := client.HeartRates(time.Now())
+	today := time.Now()
+	hr, err := client.HeartRates(today)
 	if err != nil {
 		return err
 	}
@@ -54,9 +55,22 @@ func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
 	if hr.MinHeartRate > 0 {
 		g(c.min, float64(hr.MinHeartRate))
 	}
-	if hr.MaxHeartRate > 0 {
-		g(c.max, float64(hr.MaxHeartRate))
+
+	var maxBPM int
+	if acts, err := client.ActivitiesByDate(today, today, ""); err == nil {
+		for _, a := range acts {
+			if int(a.MaxHR) > maxBPM {
+				maxBPM = int(a.MaxHR)
+			}
+		}
 	}
+	if maxBPM == 0 {
+		maxBPM = hr.MaxHeartRate
+	}
+	if maxBPM > 0 {
+		g(c.max, float64(maxBPM))
+	}
+
 	if hr.LastSevenDaysAvgRestingHeartRate > 0 {
 		g(c.sevenDayAvg, float64(hr.LastSevenDaysAvgRestingHeartRate))
 	}
