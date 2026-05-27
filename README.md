@@ -9,7 +9,7 @@
 
 Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and training metrics.
 
-Listens on port **10043** by default.
+Listens on port **10045** by default.
 
 ## Usage
 
@@ -27,7 +27,7 @@ export GARMIN_PASSWORD=yourpassword
 docker volume create garmin_data
 
 docker run -d \
-  -p 10043:10043 \
+  -p 10045:10045 \
   -e GARMIN_USERNAME=you@example.com \
   -e GARMIN_PASSWORD=yourpassword \
   -v garmin_data:/data \
@@ -44,7 +44,7 @@ services:
   garmin_exporter:
     image: barnesbiz/garmin_exporter:latest
     ports:
-      - "10043:10043"
+      - "10045:10045"
     environment:
       GARMIN_USERNAME: you@example.com
       GARMIN_PASSWORD: yourpassword
@@ -124,10 +124,10 @@ Pass `collect[]` or `exclude[]` query parameters to scrape only specific collect
 
 ```
 # Only wellness and sleep
-curl 'localhost:10043/metrics?collect[]=wellness&collect[]=sleep'
+curl 'localhost:10045/metrics?collect[]=wellness&collect[]=sleep'
 
 # Everything except activities
-curl 'localhost:10043/metrics?exclude[]=activities'
+curl 'localhost:10045/metrics?exclude[]=activities'
 ```
 
 ## Building
