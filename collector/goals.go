@@ -2,6 +2,7 @@ package collector
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -28,7 +29,7 @@ func newGoalsCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *goalsCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *goalsCollector) Update(ch chan<- prometheus.Metric, _ time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData

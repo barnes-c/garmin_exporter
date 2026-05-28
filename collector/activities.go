@@ -47,7 +47,7 @@ func newActivitiesCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *activitiesCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *activitiesCollector) Update(ch chan<- prometheus.Metric, _ time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData

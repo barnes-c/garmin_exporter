@@ -53,18 +53,17 @@ func newTrainingCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *trainingCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
-	now := time.Now()
 
 	g := func(desc *prometheus.Desc, v float64) {
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
 	}
 
-	readiness, err := client.TrainingReadiness(now)
+	readiness, err := client.TrainingReadiness(date)
 	if err != nil {
 		c.logger.Debug("training readiness unavailable", "err", err)
 	} else {
@@ -85,7 +84,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	metrics, err := client.MaxMetrics(now.AddDate(0, 0, -30), now)
+	metrics, err := client.MaxMetrics(date.AddDate(0, 0, -30), date)
 	if err != nil {
 		c.logger.Debug("max metrics unavailable", "err", err)
 	} else {
@@ -126,7 +125,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	endurance, err := client.EnduranceScore(now.AddDate(0, 0, -7), now)
+	endurance, err := client.EnduranceScore(date.AddDate(0, 0, -7), date)
 	if err != nil {
 		c.logger.Debug("endurance score unavailable", "err", err)
 	} else {
@@ -141,7 +140,7 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	hill, err := client.HillScore(now.AddDate(0, 0, -7), now)
+	hill, err := client.HillScore(date.AddDate(0, 0, -7), date)
 	if err != nil {
 		c.logger.Debug("hill score unavailable", "err", err)
 	} else {

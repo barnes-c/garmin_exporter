@@ -31,14 +31,13 @@ func newBloodPressureCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bloodPressureCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bloodPressureCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	now := time.Now()
-	bp, err := client.BloodPressure(now.AddDate(0, -1, 0), now)
+	bp, err := client.BloodPressure(date.AddDate(0, -1, 0), date)
 	if err != nil {
 		return err
 	}

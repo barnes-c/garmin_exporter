@@ -196,6 +196,37 @@ services:
     restart: unless-stopped
 ```
 
+## Backfill historical data
+
+The `--backfill` flag runs a one-shot import of historical daily metrics via OTLP, then exits. This is useful when you start scraping today but want to backfill months or years of past Garmin data into a backend that accepts backdated writes.
+
+OTLP must be configured (`OTEL_EXPORTER_OTLP_ENDPOINT`). Specify a date range with `--backfill.start`/`--backfill.end` or `--backfill.days`:
+
+```bash
+# last 90 days
+OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
+  ./garmin_exporter \
+  --backfill --backfill.days=90
+
+# specific range
+OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
+  ./garmin_exporter \
+  --backfill --backfill.start=2025-01-01 --backfill.end=2026-05-29
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backfill` | `false` | Enable backfill mode |
+| `--backfill.start` | — | Start date (YYYY-MM-DD), mutually exclusive with `--backfill.days` |
+| `--backfill.end` | today | End date (YYYY-MM-DD) |
+| `--backfill.days` | — | Number of days back from end date |
+| `--backfill.delay` | `2s` | Delay between API calls to avoid rate limiting |
+| `--backfill.collectors` | all | Comma-separated list of collectors to backfill |
+
+Backfillable collectors: `wellness`, `sleep`, `heartrate`, `stress`, `hydration`, `spo2`, `respiration`, `body`, `bloodpressure`, `bodycomposition`.
+
+On HTTP 429 (rate limit), the exporter backs off automatically and retries. If it fails for another reason, it logs the last successful date so you can resume with `--backfill.start`.
+
 ## TLS
 
 The exporter supports TLS and basic auth via the [exporter-toolkit web configuration](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md):

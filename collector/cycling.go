@@ -3,6 +3,7 @@ package collector
 import (
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -26,7 +27,7 @@ func newCyclingCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *cyclingCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *cyclingCollector) Update(ch chan<- prometheus.Metric, _ time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData

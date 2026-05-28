@@ -31,13 +31,13 @@ func newSpO2Collector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *spO2Collector) Update(ch chan<- prometheus.Metric) error {
+func (c *spO2Collector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	s, err := client.SpO2(time.Now())
+	s, err := client.SpO2(date)
 	if err != nil {
 		return err
 	}
