@@ -41,13 +41,13 @@ func newBodyCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bodyCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bodyCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	resp, err := client.DailyWeighIns(time.Now())
+	resp, err := client.DailyWeighIns(date)
 	if err != nil {
 		return err
 	}

@@ -33,13 +33,13 @@ func newHeartRateCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *heartRateCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	hr, err := client.HeartRates(time.Now())
+	hr, err := client.HeartRates(date)
 	if err != nil {
 		return err
 	}

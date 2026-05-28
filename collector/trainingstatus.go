@@ -41,13 +41,13 @@ func newTrainingStatusCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *trainingStatusCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *trainingStatusCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	resp, err := client.TrainingStatus(time.Now())
+	resp, err := client.TrainingStatus(date)
 	if err != nil {
 		return err
 	}

@@ -211,6 +211,13 @@ func main() {
 		otlpEndpoint = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP metrics push when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
 		otlpProtocol = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
 		otlpInterval = kingpin.Flag("otlp.interval", "OTLP push interval. Each push triggers a full Garmin API fetch, so keep this high to avoid rate limiting.").Default("1h").Duration()
+
+		backfillMode       = kingpin.Flag("backfill", "Run in backfill mode: fetch historical data day-by-day, push via OTLP, then exit.").Bool()
+		backfillStart      = kingpin.Flag("backfill.start", "Start date (YYYY-MM-DD). Mutually exclusive with --backfill.days.").String()
+		backfillEnd        = kingpin.Flag("backfill.end", "End date (YYYY-MM-DD).").Default(time.Now().Format("2006-01-02")).String()
+		backfillDays       = kingpin.Flag("backfill.days", "Number of days back from --backfill.end.").Int()
+		backfillDelay      = kingpin.Flag("backfill.delay", "Delay between individual API calls to avoid Garmin rate limiting.").Default("2s").Duration()
+		backfillCollectors = kingpin.Flag("backfill.collectors", "Comma-separated list of collectors to backfill (default: all backfillable).").String()
 	)
 
 	promslogConfig := &promslog.Config{}
@@ -230,7 +237,6 @@ func main() {
 	collector.SetReauthChannel(reauthCh)
 	authState := newAuthState()
 	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh)
-	go authManager.run()
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
@@ -239,6 +245,17 @@ func main() {
 	}
 	runtime.GOMAXPROCS(*maxProcs)
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
+
+	if *backfillMode {
+		if *otlpEndpoint == "" {
+			logger.Error("--backfill requires OTLP to be configured (set --otlp.endpoint or OTEL_EXPORTER_OTLP_ENDPOINT)")
+			os.Exit(1)
+		}
+		doBackfill(authManager, logger, *otlpProtocol, *backfillStart, *backfillEnd, *backfillDays, *backfillDelay, *backfillCollectors)
+		return
+	}
+
+	go authManager.run()
 
 	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState)
 	http.Handle(*metricsPath, h)

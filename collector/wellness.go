@@ -87,12 +87,12 @@ func newWellnessCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *wellnessCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *wellnessCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
-	s, err := client.UserSummary(time.Now())
+	s, err := client.UserSummary(date)
 	if err != nil {
 		return err
 	}

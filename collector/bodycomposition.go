@@ -41,14 +41,13 @@ func newBodyCompositionCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bodyCompositionCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bodyCompositionCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	now := time.Now()
-	bc, err := client.BodyComposition(now.AddDate(0, 0, -30), now)
+	bc, err := client.BodyComposition(date.AddDate(0, 0, -30), date)
 	if err != nil {
 		return err
 	}

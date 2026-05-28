@@ -29,14 +29,13 @@ func newRunningToleranceCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *runningToleranceCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *runningToleranceCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	now := time.Now()
-	entries, err := client.RunningTolerance(now.AddDate(0, 0, -7), now)
+	entries, err := client.RunningTolerance(date.AddDate(0, 0, -7), date)
 	if err != nil {
 		return err
 	}

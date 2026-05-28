@@ -35,13 +35,13 @@ func newHydrationCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *hydrationCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *hydrationCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	h, err := client.Hydration(time.Now())
+	h, err := client.Hydration(date)
 	if err != nil {
 		return err
 	}

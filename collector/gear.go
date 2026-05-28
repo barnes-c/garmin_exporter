@@ -32,13 +32,13 @@ func newGearCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *gearCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *gearCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	summary, err := client.UserSummary(time.Now())
+	summary, err := client.UserSummary(date)
 	if err != nil {
 		return err
 	}

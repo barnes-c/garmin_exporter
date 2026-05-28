@@ -191,7 +191,7 @@ func (n GarminCollector) Collect(ch chan<- prometheus.Metric) {
 
 func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog.Logger) {
 	begin := time.Now()
-	err := c.Update(ch)
+	err := c.Update(ch, begin)
 	duration := time.Since(begin)
 	var success float64
 
@@ -216,7 +216,24 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 // Collector is the interface a collector has to implement.
 type Collector interface {
 	// Get new metrics and expose them via prometheus registry.
-	Update(ch chan<- prometheus.Metric) error
+	// The date parameter controls which day's data is fetched; callers
+	// pass time.Now() for live scrapes and a historical date for backfill.
+	Update(ch chan<- prometheus.Metric, date time.Time) error
+}
+
+// BackfillableCollectors lists collector names that support historical
+// date-parameterized fetches (their Update actually uses the date).
+var BackfillableCollectors = map[string]bool{
+	"wellness":        true,
+	"sleep":           true,
+	"heartrate":       true,
+	"stress":          true,
+	"hydration":       true,
+	"spo2":            true,
+	"respiration":     true,
+	"body":            true,
+	"bloodpressure":   true,
+	"bodycomposition": true,
 }
 
 // ErrNoData indicates the collector found no data to collect, but had no other error.

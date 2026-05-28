@@ -3,6 +3,7 @@ package collector
 import (
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -32,7 +33,7 @@ func newDevicesCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *devicesCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *devicesCollector) Update(ch chan<- prometheus.Metric, _ time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData

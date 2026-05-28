@@ -31,13 +31,13 @@ func newIntensityCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *intensityCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *intensityCollector) Update(ch chan<- prometheus.Metric, date time.Time) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	im, err := client.IntensityMinutes(time.Now())
+	im, err := client.IntensityMinutes(date)
 	if err != nil {
 		return err
 	}
