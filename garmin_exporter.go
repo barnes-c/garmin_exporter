@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
@@ -36,10 +38,12 @@ type handler struct {
 	// exporterMetricsRegistry is a separate registry for the metrics about
 	// the exporter itself.
 	exporterMetricsRegistry *prometheus.Registry
-	includeExporterMetrics  bool
-	maxRequests             int
-	logger                  *slog.Logger
-	authState               *authState
+	// unfilteredRegistry holds the data registry used by the unfiltered handler.
+	unfilteredRegistry     *prometheus.Registry
+	includeExporterMetrics bool
+	maxRequests            int
+	logger                 *slog.Logger
+	authState              *authState
 }
 
 func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *authState) *handler {
@@ -134,6 +138,9 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 	}
 
 	r := prometheus.NewRegistry()
+	if len(filters) == 0 {
+		h.unfilteredRegistry = r
+	}
 	r.MustRegister(versioncollector.NewCollector("garmin_exporter"))
 	if err := r.Register(nc); err != nil {
 		return nil, fmt.Errorf("couldn't register collector: %s", err)
@@ -169,6 +176,10 @@ func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
 	return handler, nil
 }
 
+func (h *handler) Gatherers() prometheus.Gatherers {
+	return prometheus.Gatherers{h.exporterMetricsRegistry, h.unfilteredRegistry}
+}
+
 func main() {
 	var (
 		metricsPath = kingpin.Flag(
@@ -196,6 +207,10 @@ func main() {
 		garminPassword  = kingpin.Flag("garmin.password", "Garmin Connect password.").Envar("GARMIN_PASSWORD").Required().String()
 		garminTokenFile = kingpin.Flag("garmin.token-file", "Path to cached OAuth2 token file.").Default("garmin_token.json").String()
 		garminLimit     = kingpin.Flag("garmin.activity-limit", "Number of recent activities to fetch.").Default("30").Int()
+
+		otlpEndpoint = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP metrics push when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
+		otlpProtocol = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
+		otlpInterval = kingpin.Flag("otlp.interval", "OTLP push interval. Each push triggers a full Garmin API fetch, so keep this high to avoid rate limiting.").Default("1h").Duration()
 	)
 
 	promslogConfig := &promslog.Config{}
@@ -225,7 +240,29 @@ func main() {
 	runtime.GOMAXPROCS(*maxProcs)
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	http.Handle(*metricsPath, newHandler(!*disableExporterMetrics, *maxRequests, logger, authState))
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState)
+	http.Handle(*metricsPath, h)
+
+	if *otlpEndpoint != "" {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		shutdown, err := setupOTLP(ctx, h.Gatherers(), logger, otlpConfig{
+			protocol: *otlpProtocol,
+			interval: *otlpInterval,
+		})
+		if err != nil {
+			logger.Error("Failed to setup OTLP", "err", err)
+			os.Exit(1)
+		}
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := shutdown(ctx); err != nil {
+				logger.Error("OTLP shutdown error", "err", err)
+			}
+		}()
+	}
+
 	if *metricsPath != "/" {
 		landingConfig := web.LandingConfig{
 			Name:        "Garmin Exporter",
