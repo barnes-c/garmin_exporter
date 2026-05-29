@@ -2,8 +2,16 @@
 name: govulncheck
 on:
   pull_request:
+    paths:
+      - go.mod
+      - go.sum
+      - "**/*.go"
   push:
     branches: [main, master]
+    paths:
+      - go.mod
+      - go.sum
+      - "**/*.go"
   schedule:
     - cron: "33 2 * * *"
 
