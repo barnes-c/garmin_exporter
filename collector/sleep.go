@@ -106,12 +106,20 @@ func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
 		g(c.spO2Low, dto.SpO2LowReadingPercent)
 	}
 
+	c.collectHRV(ch, now)
+	return nil
+}
+
+func (c *sleepCollector) collectHRV(ch chan<- prometheus.Metric, now time.Time) {
+	client := getClient()
 	h, err := client.HRVData(now)
 	if err != nil {
 		c.logger.Debug("HRV data unavailable", "err", err)
-		return nil
+		return
 	}
-
+	g := func(desc *prometheus.Desc, v float64) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
+	}
 	hrv := h.HRVSummary
 	if hrv.WeeklyAvg > 0 {
 		g(c.hrvWeeklyAvg, float64(hrv.WeeklyAvg))
@@ -131,5 +139,4 @@ func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
 	if hrv.Baseline.BalancedUpper > 0 {
 		g(c.hrvBaselineBalancedUpper, float64(hrv.Baseline.BalancedUpper))
 	}
-	return nil
 }
