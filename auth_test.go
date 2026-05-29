@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
@@ -10,6 +12,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
+
+type failTransport struct{}
+
+func (failTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("no network in tests")
+}
 
 func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
 	now := time.Unix(1000, 0)
@@ -160,6 +168,20 @@ func TestAuthManagerRunReauthOnSignal(t *testing.T) {
 	}
 	if loginCount != 2 {
 		t.Fatalf("expected 2 login calls, got %d", loginCount)
+	}
+}
+
+func TestNewAuthManagerLoginPassesMFAPrompt(t *testing.T) {
+	var capturedOpts []garminconnect.Option
+	mfaPrompt := func() (string, error) { return "123456", nil }
+	m := newAuthManager("user", "pass", "", slog.Default(), newAuthState(), nil, mfaPrompt)
+	m.newClient = func(tokenFile string, opts ...garminconnect.Option) *garminconnect.Client {
+		capturedOpts = opts
+		return garminconnect.NewClient(tokenFile, garminconnect.WithHTTPClient(&http.Client{Transport: failTransport{}}))
+	}
+	m.login("user", "pass") //login failure expected
+	if len(capturedOpts) != 1 {
+		t.Fatalf("expected 1 opt (WithMFAPrompt), got %d", len(capturedOpts))
 	}
 }
 

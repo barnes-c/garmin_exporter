@@ -84,6 +84,7 @@ type authManager struct {
 	password  string
 	logger    *slog.Logger
 	login     func(username, password string) (*garminconnect.Client, error)
+	newClient func(tokenFile string, opts ...garminconnect.Option) *garminconnect.Client
 	setClient func(*garminconnect.Client)
 	state     *authState
 	delay     time.Duration
@@ -93,8 +94,6 @@ type authManager struct {
 	now    func() time.Time
 	sleep  func(time.Duration)
 	jitter func() time.Duration
-	// mfaPrompt is called when Garmin requires multi-factor authentication.
-	mfaPrompt func() (string, error)
 }
 
 func newAuthManager(username, password, tokenFile string, logger *slog.Logger, state *authState, reauthCh <-chan struct{}, mfaPrompt func() (string, error)) *authManager {
@@ -102,7 +101,7 @@ func newAuthManager(username, password, tokenFile string, logger *slog.Logger, s
 		username:  username,
 		password:  password,
 		logger:    logger,
-		mfaPrompt: mfaPrompt,
+		newClient: garminconnect.NewClient,
 		setClient: collector.SetClient,
 		state:     state,
 		delay:     authBackoffMin,
@@ -112,11 +111,7 @@ func newAuthManager(username, password, tokenFile string, logger *slog.Logger, s
 		jitter:    func() time.Duration { return time.Duration(rand.Int63n(int64(authBackoffMin))) },
 	}
 	m.login = func(username, password string) (*garminconnect.Client, error) {
-		var opts []garminconnect.Option
-		if m.mfaPrompt != nil {
-			opts = append(opts, garminconnect.WithMFAPrompt(m.mfaPrompt))
-		}
-		garminClient := garminconnect.NewClient(tokenFile, opts...)
+		garminClient := m.newClient(tokenFile, garminconnect.WithMFAPrompt(mfaPrompt))
 		if err := garminClient.Login(username, password); err != nil {
 			return nil, err
 		}
