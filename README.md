@@ -60,7 +60,19 @@ volumes:
 
 ## Authentication
 
-The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically -- no re-login needed until the refresh token expires.
+The exporter authenticates using your Garmin Connect username and password via the mobile SSO flow. On first start it performs a full login and caches the OAuth2 token to disk. Subsequent starts load the cached token and refresh it automatically. No re-login needed until the refresh token expires.
+
+### Multi-factor authentication
+
+If your Garmin account has MFA enabled, the exporter will prompt for the one-time code on stdin during the initial login:
+
+```
+MFA code (check your email):
+```
+
+The exporter must be run interactively for this first login. Once the token is cached to disk, subsequent starts load it automatically and MFA is not required again until the refresh token expires.
+
+For Docker Compose, add `stdin_open: true` and `tty: true` for the initial run so the prompt is reachable. Once the token is cached these can be removed.
 
 If login fails, the exporter keeps serving metrics and retries in the background with exponential backoff. The retry delay starts at 1 minute and grows up to 3 hours. While login is failing, Garmin data collectors report no data until a later login attempt succeeds.
 
