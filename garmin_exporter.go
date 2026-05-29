@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/prometheus/common/promslog"
@@ -229,7 +231,18 @@ func main() {
 	reauthCh := make(chan struct{}, 1)
 	collector.SetReauthChannel(reauthCh)
 	authState := newAuthState()
-	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh)
+	mfaPrompt := func() (string, error) {
+		fmt.Fprint(os.Stderr, "MFA code (check your email): ")
+		scanner := bufio.NewScanner(os.Stdin)
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				return "", err
+			}
+			return "", fmt.Errorf("no MFA code provided")
+		}
+		return strings.TrimSpace(scanner.Text()), nil
+	}
+	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh, mfaPrompt)
 	go authManager.run()
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
