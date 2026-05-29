@@ -64,7 +64,7 @@ The exporter authenticates using your Garmin Connect username and password via t
 
 ### Multi-factor authentication
 
-If your Garmin account has MFA enabled, the exporter will prompt for the one-time code on stdin during the initial login:
+If your Garmin account has MFA enabled, the exporter will prompt for the one-time code on stdin during login:
 
 ```
 MFA code (check your email):
