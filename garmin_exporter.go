@@ -63,11 +63,12 @@ func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logge
 			promcollectors.NewGoCollector(),
 		)
 	}
-	if innerHandler, err := h.innerHandler(); err != nil {
-		panic(fmt.Sprintf("Couldn't create metrics handler: %s", err))
-	} else {
-		h.unfilteredHandler = innerHandler
+	innerHandler, err := h.innerHandler()
+	if err != nil {
+		h.logger.Error("Couldn't create metrics handler", "err", err)
+		os.Exit(1)
 	}
+	h.unfilteredHandler = innerHandler
 	return h
 }
 
@@ -290,7 +291,7 @@ func main() {
 		}
 		landingPage, err := web.NewLandingPage(landingConfig)
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Error("Couldn't create landing page", "err", err)
 			os.Exit(1)
 		}
 		http.Handle("/", landingPage)
@@ -298,7 +299,7 @@ func main() {
 
 	server := &http.Server{}
 	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
-		logger.Error(err.Error())
+		logger.Error("ListenAndServe failed", "err", err)
 		os.Exit(1)
 	}
 }

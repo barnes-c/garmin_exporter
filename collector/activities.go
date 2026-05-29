@@ -53,7 +53,9 @@ func (c *activitiesCollector) Update(ch chan<- prometheus.Metric) error {
 		return ErrNoData
 	}
 
-	if total, err := client.ActivityCount(); err == nil {
+	if total, err := client.ActivityCount(); err != nil {
+		c.logger.Warn("failed to fetch lifetime activity count", "err", err)
+	} else {
 		ch <- prometheus.MustNewConstMetric(c.lifetimeCount, prometheus.GaugeValue, float64(total))
 	}
 
@@ -91,7 +93,9 @@ func (c *activitiesCollector) Update(ch chan<- prometheus.Metric) error {
 
 		if a.StartTimeGMT != "" {
 			t, err := time.Parse("2006-01-02 15:04:05", a.StartTimeGMT)
-			if err == nil {
+			if err != nil {
+				c.logger.Warn("failed to parse activity timestamp", "value", a.StartTimeGMT, "err", err)
+			} else {
 				ts := float64(t.Unix())
 				if ts > s.lastTS {
 					s.lastTS = ts
