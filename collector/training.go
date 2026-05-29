@@ -59,102 +59,126 @@ func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
 		return ErrNoData
 	}
 	now := time.Now()
+	c.collectReadiness(client, now, ch)
+	c.collectMaxMetrics(client, now, ch)
+	c.collectRacePredictions(client, ch)
+	c.collectEnduranceScore(client, now, ch)
+	c.collectHillScore(client, now, ch)
+	return nil
+}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
-
+func (c *trainingCollector) collectReadiness(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
 	readiness, err := client.TrainingReadiness(now)
 	if err != nil {
 		c.logger.Debug("training readiness unavailable", "err", err)
-	} else {
-		for _, r := range readiness {
-			if r.Score > 0 {
-				g(c.readinessScore, float64(r.Score))
-				if r.SleepScore > 0 {
-					g(c.readinessSleep, float64(r.SleepScore))
-				}
-				if r.RecoveryTime > 0 {
-					g(c.readinessRecovery, float64(r.RecoveryTime))
-				}
-				if r.HrvWeeklyAverage > 0 {
-					g(c.readinessHRVAvg, float64(r.HrvWeeklyAverage))
-				}
-				break
+		return
+	}
+	g := func(desc *prometheus.Desc, v float64) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
+	}
+	for _, r := range readiness {
+		if r.Score > 0 {
+			g(c.readinessScore, float64(r.Score))
+			if r.SleepScore > 0 {
+				g(c.readinessSleep, float64(r.SleepScore))
 			}
+			if r.RecoveryTime > 0 {
+				g(c.readinessRecovery, float64(r.RecoveryTime))
+			}
+			if r.HrvWeeklyAverage > 0 {
+				g(c.readinessHRVAvg, float64(r.HrvWeeklyAverage))
+			}
+			break
 		}
 	}
+}
 
+func (c *trainingCollector) collectMaxMetrics(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
 	metrics, err := client.MaxMetrics(now.AddDate(0, 0, -30), now)
 	if err != nil {
 		c.logger.Debug("max metrics unavailable", "err", err)
-	} else {
-		for i := len(metrics) - 1; i >= 0; i-- {
-			m := metrics[i]
-			if m.Generic != nil && m.Generic.VO2MaxValue > 0 {
-				g(c.vo2maxGeneric, m.Generic.VO2MaxValue)
-				if m.Generic.FitnessAge > 0 {
-					g(c.fitnessAge, float64(m.Generic.FitnessAge))
-				}
-				break
+		return
+	}
+	g := func(desc *prometheus.Desc, v float64) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
+	}
+	for i := len(metrics) - 1; i >= 0; i-- {
+		m := metrics[i]
+		if m.Generic != nil && m.Generic.VO2MaxValue > 0 {
+			g(c.vo2maxGeneric, m.Generic.VO2MaxValue)
+			if m.Generic.FitnessAge > 0 {
+				g(c.fitnessAge, float64(m.Generic.FitnessAge))
 			}
-		}
-		for i := len(metrics) - 1; i >= 0; i-- {
-			m := metrics[i]
-			if m.Cycling != nil && m.Cycling.VO2MaxValue > 0 {
-				g(c.vo2maxCycling, m.Cycling.VO2MaxValue)
-				break
-			}
+			break
 		}
 	}
+	for i := len(metrics) - 1; i >= 0; i-- {
+		m := metrics[i]
+		if m.Cycling != nil && m.Cycling.VO2MaxValue > 0 {
+			g(c.vo2maxCycling, m.Cycling.VO2MaxValue)
+			break
+		}
+	}
+}
 
+func (c *trainingCollector) collectRacePredictions(client *garminconnect.Client, ch chan<- prometheus.Metric) {
 	preds, err := client.RacePredictions()
 	if err != nil {
 		c.logger.Debug("race predictions unavailable", "err", err)
-	} else if preds != nil {
-		if preds.Time5K > 0 {
-			g(c.race5KSeconds, float64(preds.Time5K))
-		}
-		if preds.Time10K > 0 {
-			g(c.race10KSeconds, float64(preds.Time10K))
-		}
-		if preds.TimeHalfMarathon > 0 {
-			g(c.raceHalfSeconds, float64(preds.TimeHalfMarathon))
-		}
-		if preds.TimeMarathon > 0 {
-			g(c.raceMarathon, float64(preds.TimeMarathon))
-		}
+		return
 	}
+	if preds == nil {
+		return
+	}
+	g := func(desc *prometheus.Desc, v float64) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
+	}
+	if preds.Time5K > 0 {
+		g(c.race5KSeconds, float64(preds.Time5K))
+	}
+	if preds.Time10K > 0 {
+		g(c.race10KSeconds, float64(preds.Time10K))
+	}
+	if preds.TimeHalfMarathon > 0 {
+		g(c.raceHalfSeconds, float64(preds.TimeHalfMarathon))
+	}
+	if preds.TimeMarathon > 0 {
+		g(c.raceMarathon, float64(preds.TimeMarathon))
+	}
+}
 
+func (c *trainingCollector) collectEnduranceScore(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
 	endurance, err := client.EnduranceScore(now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("endurance score unavailable", "err", err)
-	} else {
-		var entries []garminconnect.EnduranceScoreEntry
-		if json.Unmarshal(endurance, &entries) == nil {
-			for i := len(entries) - 1; i >= 0; i-- {
-				if entries[i].Score > 0 {
-					g(c.enduranceScore, entries[i].Score)
-					break
-				}
-			}
+		return
+	}
+	var entries []garminconnect.EnduranceScoreEntry
+	if json.Unmarshal(endurance, &entries) != nil {
+		return
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].Score > 0 {
+			ch <- prometheus.MustNewConstMetric(c.enduranceScore, prometheus.GaugeValue, entries[i].Score)
+			break
 		}
 	}
+}
 
+func (c *trainingCollector) collectHillScore(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
 	hill, err := client.HillScore(now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("hill score unavailable", "err", err)
-	} else {
-		var entries []garminconnect.HillScoreEntry
-		if json.Unmarshal(hill, &entries) == nil {
-			for i := len(entries) - 1; i >= 0; i-- {
-				if entries[i].HillScore > 0 {
-					g(c.hillScore, entries[i].HillScore)
-					break
-				}
-			}
+		return
+	}
+	var entries []garminconnect.HillScoreEntry
+	if json.Unmarshal(hill, &entries) != nil {
+		return
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].HillScore > 0 {
+			ch <- prometheus.MustNewConstMetric(c.hillScore, prometheus.GaugeValue, entries[i].HillScore)
+			break
 		}
 	}
-
-	return nil
 }
