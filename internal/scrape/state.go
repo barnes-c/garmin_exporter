@@ -1,4 +1,6 @@
-package main
+// Package scrape tracks the most recent collector scrape outcome and exposes
+// it as both a readiness signal and a Prometheus metric.
+package scrape
 
 import (
 	"sync"
@@ -14,7 +16,8 @@ var lastScrapeTimestampDesc = prometheus.NewDesc(
 	nil,
 )
 
-type scrapeState struct {
+// State tracks the most recent scrape outcome.
+type State struct {
 	mtx       sync.RWMutex
 	recorded  bool
 	succeeded bool
@@ -23,11 +26,14 @@ type scrapeState struct {
 	now func() time.Time
 }
 
-func newScrapeState() *scrapeState {
-	return &scrapeState{now: time.Now}
+// NewState returns an empty scrape state.
+func NewState() *State {
+	return &State{now: time.Now}
 }
 
-func (s *scrapeState) record(success bool) {
+// Record marks the most recent scrape as succeeded or failed and stamps it
+// with the current time.
+func (s *State) Record(success bool) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.recorded = true
@@ -35,10 +41,10 @@ func (s *scrapeState) record(success bool) {
 	s.timestamp = s.now()
 }
 
-// ready reports whether the most recent scrape succeeded. Before the first
+// Ready reports whether the most recent scrape succeeded. Before the first
 // scrape it returns true so the readiness probe doesn't deadlock the very
 // first scrape that would update this state.
-func (s *scrapeState) ready() bool {
+func (s *State) Ready() bool {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	if !s.recorded {
@@ -48,12 +54,12 @@ func (s *scrapeState) ready() bool {
 }
 
 // Describe implements prometheus.Collector.
-func (s *scrapeState) Describe(ch chan<- *prometheus.Desc) {
+func (s *State) Describe(ch chan<- *prometheus.Desc) {
 	ch <- lastScrapeTimestampDesc
 }
 
 // Collect implements prometheus.Collector.
-func (s *scrapeState) Collect(ch chan<- prometheus.Metric) {
+func (s *State) Collect(ch chan<- prometheus.Metric) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	var ts float64

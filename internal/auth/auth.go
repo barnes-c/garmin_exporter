@@ -1,4 +1,6 @@
-package main
+// Package auth manages Garmin Connect authentication and exposes the
+// resulting login state as Prometheus metrics.
+package auth
 
 import (
 	"log/slog"
@@ -13,19 +15,19 @@ import (
 )
 
 const (
-	authBackoffMin    = time.Minute
-	authBackoffMax    = 3 * time.Hour
-	authBackoffFactor = 2
+	backoffMin    = time.Minute
+	backoffMax    = 3 * time.Hour
+	backoffFactor = 2
 )
 
 var (
-	authLoginSuccessDesc = prometheus.NewDesc(
+	loginSuccessDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("garmin", "auth", "login_success"),
 		"garmin_exporter: Whether the last Garmin login attempt succeeded.",
 		nil,
 		nil,
 	)
-	authNextRetryTimestampDesc = prometheus.NewDesc(
+	nextRetryTimestampDesc = prometheus.NewDesc(
 		prometheus.BuildFQName("garmin", "auth", "next_retry_timestamp_seconds"),
 		"garmin_exporter: Unix timestamp of the next scheduled Garmin login attempt, or 0 when no retry is scheduled.",
 		nil,
@@ -33,17 +35,21 @@ var (
 	)
 )
 
-type authState struct {
+// State tracks the most recent Garmin login attempt and exposes it as
+// Prometheus metrics.
+type State struct {
 	mtx                sync.RWMutex
 	loginSuccess       float64
 	nextRetryTimestamp float64
 }
 
-func newAuthState() *authState {
-	return &authState{}
+// NewState returns an empty login state.
+func NewState() *State {
+	return &State{}
 }
 
-func (s *authState) setLoginSuccess() {
+// SetLoginSuccess marks the most recent login as successful.
+func (s *State) SetLoginSuccess() {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -51,7 +57,9 @@ func (s *authState) setLoginSuccess() {
 	s.nextRetryTimestamp = 0
 }
 
-func (s *authState) setLoginFailure(nextRetry time.Time) {
+// SetLoginFailure marks the most recent login as failed and records when the
+// next retry is scheduled.
+func (s *State) SetLoginFailure(nextRetry time.Time) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -59,7 +67,8 @@ func (s *authState) setLoginFailure(nextRetry time.Time) {
 	s.nextRetryTimestamp = float64(nextRetry.Unix())
 }
 
-func (s *authState) snapshot() (float64, float64) {
+// Snapshot returns the current loginSuccess (0 or 1) and nextRetry timestamp.
+func (s *State) Snapshot() (float64, float64) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
@@ -67,26 +76,28 @@ func (s *authState) snapshot() (float64, float64) {
 }
 
 // Describe implements prometheus.Collector.
-func (s *authState) Describe(ch chan<- *prometheus.Desc) {
-	ch <- authLoginSuccessDesc
-	ch <- authNextRetryTimestampDesc
+func (s *State) Describe(ch chan<- *prometheus.Desc) {
+	ch <- loginSuccessDesc
+	ch <- nextRetryTimestampDesc
 }
 
 // Collect implements prometheus.Collector.
-func (s *authState) Collect(ch chan<- prometheus.Metric) {
-	loginSuccess, nextRetryTimestamp := s.snapshot()
-	ch <- prometheus.MustNewConstMetric(authLoginSuccessDesc, prometheus.GaugeValue, loginSuccess)
-	ch <- prometheus.MustNewConstMetric(authNextRetryTimestampDesc, prometheus.GaugeValue, nextRetryTimestamp)
+func (s *State) Collect(ch chan<- prometheus.Metric) {
+	loginSuccess, nextRetryTimestamp := s.Snapshot()
+	ch <- prometheus.MustNewConstMetric(loginSuccessDesc, prometheus.GaugeValue, loginSuccess)
+	ch <- prometheus.MustNewConstMetric(nextRetryTimestampDesc, prometheus.GaugeValue, nextRetryTimestamp)
 }
 
-type authManager struct {
+// Manager runs the Garmin login loop, retrying with exponential backoff and
+// installing successful clients into the collector package.
+type Manager struct {
 	username  string
 	password  string
 	logger    *slog.Logger
 	login     func(username, password string) (*garminconnect.Client, error)
 	newClient func(tokenFile string, opts ...garminconnect.Option) *garminconnect.Client
 	setClient func(*garminconnect.Client)
-	state     *authState
+	state     *State
 	delay     time.Duration
 	reauthCh  <-chan struct{}
 
@@ -96,19 +107,21 @@ type authManager struct {
 	jitter func() time.Duration
 }
 
-func newAuthManager(username, password, tokenFile string, logger *slog.Logger, state *authState, reauthCh <-chan struct{}, mfaPrompt func() (string, error)) *authManager {
-	m := &authManager{
+// NewManager constructs a Manager. Logins use the supplied username and
+// password; successful clients are installed into the collector package.
+func NewManager(username, password, tokenFile string, logger *slog.Logger, state *State, reauthCh <-chan struct{}, mfaPrompt func() (string, error)) *Manager {
+	m := &Manager{
 		username:  username,
 		password:  password,
 		logger:    logger,
 		newClient: garminconnect.NewClient,
 		setClient: collector.SetClient,
 		state:     state,
-		delay:     authBackoffMin,
+		delay:     backoffMin,
 		reauthCh:  reauthCh,
 		now:       time.Now,
 		sleep:     time.Sleep,
-		jitter:    func() time.Duration { return time.Duration(rand.Int63n(int64(authBackoffMin))) },
+		jitter:    func() time.Duration { return time.Duration(rand.Int63n(int64(backoffMin))) },
 	}
 	m.login = func(username, password string) (*garminconnect.Client, error) {
 		garminClient := m.newClient(tokenFile, garminconnect.WithMFAPrompt(mfaPrompt))
@@ -120,17 +133,19 @@ func newAuthManager(username, password, tokenFile string, logger *slog.Logger, s
 	return m
 }
 
-func (m *authManager) nextDelay() time.Duration {
+func (m *Manager) nextDelay() time.Duration {
 	d := m.delay + m.jitter()
-	m.delay = min(m.delay*authBackoffFactor, authBackoffMax)
+	m.delay = min(m.delay*backoffFactor, backoffMax)
 	return d
 }
 
-func (m *authManager) resetDelay() {
-	m.delay = authBackoffMin
+func (m *Manager) resetDelay() {
+	m.delay = backoffMin
 }
 
-func (m *authManager) run() {
+// Run runs the login loop: attempts an initial login (retrying on failure),
+// then re-logs in whenever a signal arrives on reauthCh.
+func (m *Manager) Run() {
 	for {
 		delay, ok := m.attemptLogin()
 		if ok {
@@ -151,11 +166,11 @@ func (m *authManager) run() {
 	}
 }
 
-func (m *authManager) attemptLogin() (time.Duration, bool) {
+func (m *Manager) attemptLogin() (time.Duration, bool) {
 	garminClient, err := m.login(m.username, m.password)
 	if err == nil {
 		m.setClient(garminClient)
-		m.state.setLoginSuccess()
+		m.state.SetLoginSuccess()
 		m.resetDelay()
 		m.logger.Info("Garmin login succeeded")
 		return 0, true
@@ -164,7 +179,7 @@ func (m *authManager) attemptLogin() (time.Duration, bool) {
 	delay := m.nextDelay()
 	nextRetry := m.now().Add(delay)
 	m.setClient(nil)
-	m.state.setLoginFailure(nextRetry)
+	m.state.SetLoginFailure(nextRetry)
 	m.logger.Error("Garmin login failed", "err", err, "retry_after", delay, "next_retry", nextRetry.Unix())
 	return delay, false
 }
