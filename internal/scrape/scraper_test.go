@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 )
 
 func discardLogger() *slog.Logger {
@@ -278,4 +280,147 @@ func TestBuildCollectorsError(t *testing.T) {
 	if success.Load() {
 		t.Fatal("OnScrape should report failure on build error")
 	}
+}
+
+func TestRefreshTotalSuccess(t *testing.T) {
+	c := newCounterCollector("a")
+	s := New(Config{
+		Logger: discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) {
+			return map[string]prometheus.Collector{"a": c}, nil
+		},
+		OnScrape: func(bool) {},
+	})
+	_ = s.Refresh(context.Background())
+
+	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSuccess)); got != 1 {
+		t.Fatalf("expected 1 success refresh, got %v", got)
+	}
+	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 0 {
+		t.Fatalf("expected 0 failure refreshes, got %v", got)
+	}
+}
+
+func TestRefreshTotalFailureOnEmpty(t *testing.T) {
+	s := New(Config{
+		Logger:          discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) { return map[string]prometheus.Collector{}, nil },
+		OnScrape:        func(bool) {},
+	})
+	_ = s.Refresh(context.Background())
+
+	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
+		t.Fatalf("expected 1 failure refresh, got %v", got)
+	}
+}
+
+func TestRefreshTotalFailureOnBuildError(t *testing.T) {
+	s := New(Config{
+		Logger:          discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, errors.New("boom") },
+		OnScrape:        func(bool) {},
+	})
+	_ = s.Refresh(context.Background())
+
+	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
+		t.Fatalf("expected 1 failure refresh, got %v", got)
+	}
+}
+
+func TestRefreshTotalSkipped(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	s := New(Config{
+		Logger: discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) {
+			started <- struct{}{}
+			<-release
+			return map[string]prometheus.Collector{}, nil
+		},
+		OnScrape: func(bool) {},
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
+	<-started
+	// Second concurrent refresh hits the semaphore and is skipped.
+	_ = s.Refresh(context.Background())
+	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSkipped)); got != 1 {
+		t.Fatalf("expected 1 skipped refresh, got %v", got)
+	}
+	close(release)
+	wg.Wait()
+}
+
+func TestRefreshDurationObserved(t *testing.T) {
+	c := newCounterCollector("a")
+	s := New(Config{
+		Logger: discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) {
+			return map[string]prometheus.Collector{"a": c}, nil
+		},
+		OnScrape: func(bool) {},
+	})
+	_ = s.Refresh(context.Background())
+
+	families := gatherScraperFamilies(t, s)
+	hist := findFamily(families, "garmin_cache_refresh_duration_seconds")
+	if hist == nil {
+		t.Fatal("histogram family missing")
+	}
+	if got := hist.GetMetric()[0].GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("expected 1 histogram sample, got %d", got)
+	}
+}
+
+func TestCacheAgeBeforeFirstRefresh(t *testing.T) {
+	s := New(Config{Logger: discardLogger()})
+	families := gatherScraperFamilies(t, s)
+	assertGaugeValue(t, families, "garmin_cache_age_seconds", 0)
+	assertGaugeValue(t, families, "garmin_cache_refresh_in_flight", 0)
+}
+
+func TestCacheAgeAfterRefresh(t *testing.T) {
+	c := newCounterCollector("a")
+	s := New(Config{
+		Logger: discardLogger(),
+		BuildCollectors: func() (map[string]prometheus.Collector, error) {
+			return map[string]prometheus.Collector{"a": c}, nil
+		},
+		OnScrape: func(bool) {},
+	})
+	_ = s.Refresh(context.Background())
+
+	families := gatherScraperFamilies(t, s)
+	age := findFamily(families, "garmin_cache_age_seconds")
+	if age == nil {
+		t.Fatal("cache_age family missing")
+	}
+	val := age.GetMetric()[0].GetGauge().GetValue()
+	if val < 0 || val > 1 {
+		t.Fatalf("expected cache age between 0 and 1 seconds right after refresh, got %v", val)
+	}
+}
+
+func gatherScraperFamilies(t *testing.T, s *Scraper) []*dto.MetricFamily {
+	t.Helper()
+	reg := prometheus.NewRegistry()
+	if err := reg.Register(s); err != nil {
+		t.Fatalf("register scraper: %v", err)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	return families
+}
+
+func findFamily(families []*dto.MetricFamily, name string) *dto.MetricFamily {
+	for _, f := range families {
+		if f.GetName() == name {
+			return f
+		}
+	}
+	return nil
 }
