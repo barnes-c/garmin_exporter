@@ -135,7 +135,6 @@ func TestManagerBackoffDelayIsCapped(t *testing.T) {
 }
 
 func TestManagerRunReauthOnSignal(t *testing.T) {
-	reauthCh := make(chan struct{}, 1)
 	loginCount := 0
 	second := make(chan struct{})
 	client := &garminconnect.Client{}
@@ -154,7 +153,7 @@ func TestManagerRunReauthOnSignal(t *testing.T) {
 		setClient: func(*garminconnect.Client) {},
 		state:     NewState(),
 		delay:     time.Millisecond,
-		reauthCh:  reauthCh,
+		reauthCh:  make(chan struct{}, 1),
 		readyCh:   make(chan struct{}),
 		now:       time.Now,
 		sleep:     func(time.Duration) {},
@@ -162,7 +161,7 @@ func TestManagerRunReauthOnSignal(t *testing.T) {
 	}
 
 	go manager.Run()
-	reauthCh <- struct{}{}
+	manager.TriggerReauth()
 
 	select {
 	case <-second:
@@ -171,6 +170,20 @@ func TestManagerRunReauthOnSignal(t *testing.T) {
 	}
 	if loginCount != 2 {
 		t.Fatalf("expected 2 login calls, got %d", loginCount)
+	}
+}
+
+func TestManagerTriggerReauthNonBlocking(t *testing.T) {
+	m := Manager{reauthCh: make(chan struct{}, 1)}
+	// First call queues the request.
+	m.TriggerReauth()
+	// Second call must not block even though the buffer is full.
+	done := make(chan struct{})
+	go func() { m.TriggerReauth(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("TriggerReauth blocked when buffer was full")
 	}
 }
 
@@ -224,7 +237,7 @@ func TestManagerReadySignalsOnFirstSuccess(t *testing.T) {
 func TestNewManagerLoginPassesMFAPrompt(t *testing.T) {
 	var capturedOpts []garminconnect.Option
 	mfaPrompt := func() (string, error) { return "123456", nil }
-	m := NewManager("user", "pass", "", slog.Default(), NewState(), nil, mfaPrompt)
+	m := NewManager("user", "pass", "", slog.Default(), NewState(), mfaPrompt)
 	m.newClient = func(tokenFile string, opts ...garminconnect.Option) *garminconnect.Client {
 		capturedOpts = opts
 		return garminconnect.NewClient(tokenFile, garminconnect.WithHTTPClient(&http.Client{Transport: failTransport{}}))

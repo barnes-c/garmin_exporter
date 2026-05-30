@@ -30,31 +30,7 @@ var (
 	garminClientMtx sync.RWMutex
 	garminClient    *garminconnect.Client
 	activityLimit   = 30
-
-	reauthMu sync.Mutex
-	reauthCh chan<- struct{}
 )
-
-// SetReauthChannel registers a buffered channel that receives a signal
-// whenever a collector encounters ErrUnauthorized, triggering a re-login.
-func SetReauthChannel(ch chan<- struct{}) {
-	reauthMu.Lock()
-	defer reauthMu.Unlock()
-	reauthCh = ch
-}
-
-func signalReauth() {
-	reauthMu.Lock()
-	ch := reauthCh
-	reauthMu.Unlock()
-	if ch == nil {
-		return
-	}
-	select {
-	case ch <- struct{}{}:
-	default: // already signalled, don't block
-	}
-}
 
 // SetClient sets the Garmin API client used by all collectors.
 func SetClient(c *garminconnect.Client) {
@@ -154,14 +130,22 @@ func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollecto
 	return &GarminCollector{Collectors: collectors, logger: logger}, nil
 }
 
-// PromCollectors returns the enabled Garmin sub-collectors wrapped as
-// prometheus.Collector. Each returned value also implements LastErrorReporter
-func (n *GarminCollector) PromCollectors() map[string]prometheus.Collector {
+// Each returned value also implements LastErrorReporter.
+func (n *GarminCollector) PromCollectors(opts ...AdapterOption) map[string]prometheus.Collector {
 	out := make(map[string]prometheus.Collector, len(n.Collectors))
 	for name, c := range n.Collectors {
-		out[name] = newAdapter(c)
+		out[name] = newAdapter(c, opts...)
 	}
 	return out
+}
+
+// AdapterOption configures an individual sub-collector adapter.
+type AdapterOption func(*adapter)
+
+// WithUnauthorizedHandler installs a callback that is invoked when a
+// collector reports an ErrUnauthorized error during Update.
+func WithUnauthorizedHandler(fn func()) AdapterOption {
+	return func(a *adapter) { a.onUnauthorized = fn }
 }
 
 // LastErrorReporter exposes the most recent Update error from a Garmin
@@ -171,12 +155,19 @@ type LastErrorReporter interface {
 }
 
 type adapter struct {
-	inner Collector
-	mu    sync.Mutex
-	err   error
+	inner          Collector
+	mu             sync.Mutex
+	err            error
+	onUnauthorized func()
 }
 
-func newAdapter(c Collector) *adapter { return &adapter{inner: c} }
+func newAdapter(c Collector, opts ...AdapterOption) *adapter {
+	a := &adapter{inner: c}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
+}
 
 func (a *adapter) Describe(ch chan<- *prometheus.Desc) {
 	prometheus.DescribeByCollect(a, ch)
@@ -187,8 +178,8 @@ func (a *adapter) Collect(ch chan<- prometheus.Metric) {
 	a.mu.Lock()
 	if err != nil && !IsNoDataError(err) {
 		a.err = err
-		if errors.Is(err, garminconnect.ErrUnauthorized) {
-			signalReauth()
+		if errors.Is(err, garminconnect.ErrUnauthorized) && a.onUnauthorized != nil {
+			a.onUnauthorized()
 		}
 	} else {
 		a.err = nil
