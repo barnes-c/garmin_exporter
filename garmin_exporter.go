@@ -46,17 +46,19 @@ type handler struct {
 	maxRequests            int
 	logger                 *slog.Logger
 	authState              *authState
+	scrapeState            *scrapeState
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *authState) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *authState, scrapeState *scrapeState) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
 		maxRequests:             maxRequests,
 		logger:                  logger,
 		authState:               authState,
+		scrapeState:             scrapeState,
 	}
-	h.exporterMetricsRegistry.MustRegister(h.authState)
+	h.exporterMetricsRegistry.MustRegister(h.authState, h.scrapeState)
 	if h.includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
 			promcollectors.NewProcessCollector(promcollectors.ProcessCollectorOpts{}),
@@ -256,7 +258,7 @@ func main() {
 	runtime.GOMAXPROCS(*maxProcs)
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState)
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeState)
 	http.Handle(*metricsPath, h)
 	http.HandleFunc("/healthz", healthzHandler)
 	http.Handle("/readyz", readyzHandler(authState, scrapeState))
