@@ -208,6 +208,30 @@ services:
     restart: unless-stopped
 ```
 
+## Health and readiness
+
+The exporter exposes two endpoints for liveness and readiness probes:
+
+| Path | Status | Meaning |
+|------|--------|---------|
+| `/healthz` | always `200 OK` | Process is alive |
+| `/readyz` | `200 OK` when Garmin login has succeeded and the most recent scrape produced data, otherwise `503 Service Unavailable` | Exporter is ready to serve fresh metrics |
+
+`/readyz` reports ready as soon as login succeeds. After the first scrape it also reflects the most recent scrape: if every collector failed (typically because Garmin is unreachable or rate-limiting), it flips back to `503` until a later scrape recovers.
+
+Example Kubernetes probes:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 10045
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 10045
+```
+
 ## TLS
 
 The exporter supports TLS and basic auth via the [exporter-toolkit web configuration](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md):
