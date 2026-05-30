@@ -56,7 +56,7 @@ func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logge
 		logger:                  logger,
 	}
 	h.exporterMetricsRegistry.MustRegister(versioncollector.NewCollector("garmin_exporter"))
-	h.exporterMetricsRegistry.MustRegister(authState, scrapeOutcome)
+	h.exporterMetricsRegistry.MustRegister(authState, scrapeOutcome, scrp)
 	if includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
 			promcollectors.NewProcessCollector(promcollectors.ProcessCollectorOpts{}),

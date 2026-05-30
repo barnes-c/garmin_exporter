@@ -24,6 +24,25 @@ var (
 		[]string{"collector"},
 		nil,
 	)
+
+	cacheAgeDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("garmin", "cache", "age_seconds"),
+		"garmin_exporter: Seconds since the most recent cache refresh; 0 before the first refresh.",
+		nil,
+		nil,
+	)
+	cacheInFlightDesc = prometheus.NewDesc(
+		prometheus.BuildFQName("garmin", "cache", "refresh_in_flight"),
+		"garmin_exporter: 1 if a cache refresh is currently running, 0 otherwise.",
+		nil,
+		nil,
+	)
+)
+
+const (
+	refreshResultSuccess = "success"
+	refreshResultFailure = "failure"
+	refreshResultSkipped = "skipped"
 )
 
 // Config configures a Scraper.
@@ -64,14 +83,40 @@ type Scraper struct {
 	cfg     Config
 	current atomic.Pointer[snapshot]
 	sem     chan struct{}
+
+	refreshInFlight atomic.Int64
+	refreshTotal    *prometheus.CounterVec
+	refreshDuration prometheus.Histogram
 }
 
 // New constructs a Scraper. It does not start the refresh loop; call Run.
 func New(cfg Config) *Scraper {
-	return &Scraper{
+	s := &Scraper{
 		cfg: cfg,
 		sem: make(chan struct{}, 1),
+		refreshTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: "garmin",
+				Subsystem: "cache",
+				Name:      "refresh_total",
+				Help:      "garmin_exporter: Number of cache refresh attempts, labelled by result.",
+			},
+			[]string{"result"},
+		),
+		refreshDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "garmin",
+			Subsystem: "cache",
+			Name:      "refresh_duration_seconds",
+			Help:      "garmin_exporter: Time spent rebuilding the cache snapshot.",
+			Buckets:   []float64{0.1, 0.5, 1, 2.5, 5, 10, 15, 30, 60},
+		}),
 	}
+	// Pre-register the three label values so dashboards see a zero series
+	// even before the first refresh of each kind.
+	for _, result := range []string{refreshResultSuccess, refreshResultFailure, refreshResultSkipped} {
+		s.refreshTotal.WithLabelValues(result)
+	}
+	return s
 }
 
 // Run blocks until ctx is cancelled. It waits for AuthReady to signal the
@@ -111,13 +156,19 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		defer func() { <-s.sem }()
 	default:
 		s.cfg.Logger.Warn("skipping refresh: previous still running")
+		s.refreshTotal.WithLabelValues(refreshResultSkipped).Inc()
 		return
 	}
+	s.refreshInFlight.Store(1)
+	defer s.refreshInFlight.Store(0)
+	start := time.Now()
+	defer func() { s.refreshDuration.Observe(time.Since(start).Seconds()) }()
 
 	cols, err := s.cfg.BuildCollectors()
 	if err != nil {
 		s.cfg.Logger.Error("build collectors", "err", err)
 		s.cfg.OnScrape(false)
+		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
 		return
 	}
 
@@ -189,6 +240,11 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 
 	s.current.Store(snap)
 	s.cfg.OnScrape(anySuccess)
+	if anySuccess {
+		s.refreshTotal.WithLabelValues(refreshResultSuccess).Inc()
+	} else {
+		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
+	}
 	s.cfg.Logger.Debug("refresh complete", "duration_seconds", time.Since(snap.builtAt).Seconds(), "success", anySuccess)
 }
 
@@ -202,6 +258,28 @@ func (s *Scraper) Gatherer() prometheus.Gatherer {
 		}
 		return snap.all, nil
 	})
+}
+
+// Describe implements prometheus.Collector. The Scraper exposes its own
+// cache-observability metrics; the cached Garmin data is exposed via
+// Gatherer instead.
+func (s *Scraper) Describe(ch chan<- *prometheus.Desc) {
+	ch <- cacheAgeDesc
+	ch <- cacheInFlightDesc
+	s.refreshTotal.Describe(ch)
+	s.refreshDuration.Describe(ch)
+}
+
+// Collect implements prometheus.Collector.
+func (s *Scraper) Collect(ch chan<- prometheus.Metric) {
+	var age float64
+	if snap := s.current.Load(); snap != nil {
+		age = time.Since(snap.builtAt).Seconds()
+	}
+	ch <- prometheus.MustNewConstMetric(cacheAgeDesc, prometheus.GaugeValue, age)
+	ch <- prometheus.MustNewConstMetric(cacheInFlightDesc, prometheus.GaugeValue, float64(s.refreshInFlight.Load()))
+	s.refreshTotal.Collect(ch)
+	s.refreshDuration.Collect(ch)
 }
 
 // FilteredGatherer returns a Gatherer that serves only the families

@@ -92,6 +92,15 @@ Authentication status is exposed with these metrics:
 | `garmin_auth_next_retry_timestamp_seconds` | Unix timestamp of the next scheduled login attempt, or `0` when no retry is scheduled |
 | `garmin_last_scrape_timestamp_seconds` | Unix timestamp of the most recent metrics scrape, or `0` before the first scrape. Combine with `garmin_scrape_collector_success` to alert on stale data. |
 
+Cache observability is exposed with these metrics:
+
+| Metric | Description |
+|--------|-------------|
+| `garmin_cache_age_seconds` | Seconds since the most recent cache refresh; `0` before the first refresh. Alert if it exceeds 2 × `--cache.ttl`. |
+| `garmin_cache_refresh_total{result="success\|failure\|skipped"}` | Counter of refresh attempts. `skipped` means a refresh was dropped because a previous one was still running. |
+| `garmin_cache_refresh_duration_seconds` | Histogram of refresh durations. |
+| `garmin_cache_refresh_in_flight` | `1` while a refresh is running, `0` otherwise. |
+
 ## Collectors
 
 All collectors are enabled by default. Individual collectors can be disabled with `--no-collector.<name>` or a specific set enabled with `--collector.<name>`.
