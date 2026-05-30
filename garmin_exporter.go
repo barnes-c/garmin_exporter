@@ -179,8 +179,6 @@ func main() {
 	}
 
 	collector.SetActivityLimit(*garminLimit)
-	reauthCh := make(chan struct{}, 1)
-	collector.SetReauthChannel(reauthCh)
 	scrapeOutcome := scrape.NewOutcome()
 	authState := auth.NewState()
 	mfaPrompt := func() (string, error) {
@@ -194,7 +192,7 @@ func main() {
 		}
 		return strings.TrimSpace(scanner.Text()), nil
 	}
-	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh, mfaPrompt)
+	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, mfaPrompt)
 	go authManager.Run()
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
@@ -230,7 +228,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			return gc.PromCollectors(), nil
+			return gc.PromCollectors(collector.WithUnauthorizedHandler(authManager.TriggerReauth)), nil
 		},
 		AuthReady: authManager.Ready,
 		OnScrape:  scrapeOutcome.Record,

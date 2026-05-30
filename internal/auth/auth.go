@@ -100,7 +100,7 @@ type Manager struct {
 	setClient func(*garminconnect.Client)
 	state     *State
 	delay     time.Duration
-	reauthCh  <-chan struct{}
+	reauthCh  chan struct{}
 
 	readyOnce sync.Once
 	readyCh   chan struct{}
@@ -113,7 +113,7 @@ type Manager struct {
 
 // NewManager constructs a Manager. Logins use the supplied username and
 // password; successful clients are installed into the collector package.
-func NewManager(username, password, tokenFile string, logger *slog.Logger, state *State, reauthCh <-chan struct{}, mfaPrompt func() (string, error)) *Manager {
+func NewManager(username, password, tokenFile string, logger *slog.Logger, state *State, mfaPrompt func() (string, error)) *Manager {
 	m := &Manager{
 		username:  username,
 		password:  password,
@@ -122,7 +122,7 @@ func NewManager(username, password, tokenFile string, logger *slog.Logger, state
 		setClient: collector.SetClient,
 		state:     state,
 		delay:     backoffMin,
-		reauthCh:  reauthCh,
+		reauthCh:  make(chan struct{}, 1),
 		readyCh:   make(chan struct{}),
 		now:       time.Now,
 		sleep:     time.Sleep,
@@ -179,6 +179,15 @@ func (m *Manager) Ready(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+// TriggerReauth requests a re-authentication on the next Run loop iteration.
+// Non-blocking: if a request is already queued, this is a no-op.
+func (m *Manager) TriggerReauth() {
+	select {
+	case m.reauthCh <- struct{}{}:
+	default:
 	}
 }
 
