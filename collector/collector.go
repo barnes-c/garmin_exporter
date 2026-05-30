@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/barnes-c/go-garminconnect/garminconnect"
@@ -16,21 +14,6 @@ import (
 
 // Namespace defines the common namespace to be used by all metrics.
 const namespace = "garmin"
-
-var (
-	scrapeDurationDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_duration_seconds"),
-		"garmin_exporter: Duration of a collector scrape.",
-		[]string{"collector"},
-		nil,
-	)
-	scrapeSuccessDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_success"),
-		"garmin_exporter: Whether a collector succeeded.",
-		[]string{"collector"},
-		nil,
-	)
-)
 
 const (
 	defaultEnabled  = true
@@ -50,27 +33,7 @@ var (
 
 	reauthMu sync.Mutex
 	reauthCh chan<- struct{}
-
-	scrapeRecorderMu sync.RWMutex
-	scrapeRecorder   func(success bool)
 )
-
-// SetScrapeRecorder registers a callback invoked after each scrape with
-// whether the scrape produced data from at least one collector.
-func SetScrapeRecorder(fn func(success bool)) {
-	scrapeRecorderMu.Lock()
-	defer scrapeRecorderMu.Unlock()
-	scrapeRecorder = fn
-}
-
-func recordScrape(success bool) {
-	scrapeRecorderMu.RLock()
-	fn := scrapeRecorder
-	scrapeRecorderMu.RUnlock()
-	if fn != nil {
-		fn(success)
-	}
-}
 
 // SetReauthChannel registers a buffered channel that receives a signal
 // whenever a collector encounters ErrUnauthorized, triggering a re-login.
@@ -129,7 +92,7 @@ func registerCollector(collector string, isDefaultEnabled bool, factory func(log
 	factories[collector] = factory
 }
 
-// GarminCollector implements the prometheus.Collector interface.
+// GarminCollector holds the set of enabled Garmin sub-collectors.
 type GarminCollector struct {
 	Collectors map[string]Collector
 	logger     *slog.Logger
@@ -191,57 +154,53 @@ func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollecto
 	return &GarminCollector{Collectors: collectors, logger: logger}, nil
 }
 
-// Describe implements the prometheus.Collector interface.
-func (n GarminCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- scrapeDurationDesc
-	ch <- scrapeSuccessDesc
-}
-
-// Collect implements the prometheus.Collector interface.
-func (n GarminCollector) Collect(ch chan<- prometheus.Metric) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(n.Collectors))
-	var ok atomic.Int32
+// PromCollectors returns the enabled Garmin sub-collectors wrapped as
+// prometheus.Collector. Each returned value also implements LastErrorReporter
+func (n *GarminCollector) PromCollectors() map[string]prometheus.Collector {
+	out := make(map[string]prometheus.Collector, len(n.Collectors))
 	for name, c := range n.Collectors {
-		go func(name string, c Collector) {
-			defer wg.Done()
-			if execute(name, c, ch, n.logger) {
-				ok.Add(1)
-			}
-		}(name, c)
+		out[name] = newAdapter(c)
 	}
-	wg.Wait()
-	recordScrape(ok.Load() > 0)
+	return out
 }
 
-// execute runs a single collector and returns true if it ran without a real
-// error. ErrNoData counts as "ran without error" — the collector worked,
-// there was simply nothing to expose.
-func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog.Logger) bool {
-	begin := time.Now()
-	err := c.Update(ch)
-	duration := time.Since(begin)
-	var success float64
-	ok := true
+// LastErrorReporter exposes the most recent Update error from a Garmin
+// sub-collector wrapped via PromCollectors.
+type LastErrorReporter interface {
+	LastError() error
+}
 
-	if err != nil {
-		if IsNoDataError(err) {
-			logger.Debug("collector returned no data", "name", name, "duration_seconds", duration.Seconds(), "err", err)
-		} else {
-			logger.Error("collector failed", "name", name, "duration_seconds", duration.Seconds(), "err", err)
-			if errors.Is(err, garminconnect.ErrUnauthorized) {
-				signalReauth()
-			}
-			ok = false
+type adapter struct {
+	inner Collector
+	mu    sync.Mutex
+	err   error
+}
+
+func newAdapter(c Collector) *adapter { return &adapter{inner: c} }
+
+func (a *adapter) Describe(ch chan<- *prometheus.Desc) {
+	prometheus.DescribeByCollect(a, ch)
+}
+
+func (a *adapter) Collect(ch chan<- prometheus.Metric) {
+	err := a.inner.Update(ch)
+	a.mu.Lock()
+	if err != nil && !IsNoDataError(err) {
+		a.err = err
+		if errors.Is(err, garminconnect.ErrUnauthorized) {
+			signalReauth()
 		}
-		success = 0
 	} else {
-		logger.Debug("collector succeeded", "name", name, "duration_seconds", duration.Seconds())
-		success = 1
+		a.err = nil
 	}
-	ch <- prometheus.MustNewConstMetric(scrapeDurationDesc, prometheus.GaugeValue, duration.Seconds(), name)
-	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, name)
-	return ok
+	a.mu.Unlock()
+}
+
+// LastError returns the most recent non-nil error reported by Update.
+func (a *adapter) LastError() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.err
 }
 
 // Collector is the interface a collector has to implement.

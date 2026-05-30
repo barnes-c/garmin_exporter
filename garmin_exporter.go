@@ -34,159 +34,101 @@ import (
 	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
 
-// handler wraps an unfiltered http.Handler but uses a filtered handler,
-// created on the fly, if filtering is requested. Create instances with
-// newHandler.
+// handler serves Prometheus metrics from the scraper's cached snapshot
+// alongside the exporter's own meta-metrics (process_*, go_*, garmin_auth_*,
+// garmin_last_scrape_timestamp_seconds, etc.).
 type handler struct {
-	unfilteredHandler http.Handler
-	// enabledCollectors list is used for logging and filtering
-	enabledCollectors []string
-	// exporterMetricsRegistry is a separate registry for the metrics about
-	// the exporter itself.
 	exporterMetricsRegistry *prometheus.Registry
-	// unfilteredRegistry holds the data registry used by the unfiltered handler.
-	unfilteredRegistry     *prometheus.Registry
-	includeExporterMetrics bool
-	maxRequests            int
-	logger                 *slog.Logger
-	authState              *auth.State
-	scrapeState            *scrape.State
+	scraper                 *scrape.Scraper
+	knownCollectors         []string
+	includeExporterMetrics  bool
+	maxRequests             int
+	logger                  *slog.Logger
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *auth.State, scrapeState *scrape.State) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *auth.State, scrapeOutcome *scrape.Outcome, scrp *scrape.Scraper, knownCollectors []string) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
+		scraper:                 scrp,
+		knownCollectors:         knownCollectors,
 		includeExporterMetrics:  includeExporterMetrics,
 		maxRequests:             maxRequests,
 		logger:                  logger,
-		authState:               authState,
-		scrapeState:             scrapeState,
 	}
-	h.exporterMetricsRegistry.MustRegister(h.authState, h.scrapeState)
-	if h.includeExporterMetrics {
+	h.exporterMetricsRegistry.MustRegister(versioncollector.NewCollector("garmin_exporter"))
+	h.exporterMetricsRegistry.MustRegister(authState, scrapeOutcome)
+	if includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
 			promcollectors.NewProcessCollector(promcollectors.ProcessCollectorOpts{}),
 			promcollectors.NewGoCollector(),
 		)
 	}
-	innerHandler, err := h.innerHandler()
-	if err != nil {
-		h.logger.Error("Couldn't create metrics handler", "err", err)
-		os.Exit(1)
-	}
-	h.unfilteredHandler = innerHandler
 	return h
 }
 
-// ServeHTTP implements http.Handler.
+// ServeHTTP implements http.Handler. It always serves from the scraper's
+// cached snapshot; filtered scrapes intersect that snapshot in memory and
+// never trigger a Garmin call.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	collects := r.URL.Query()["collect[]"]
-	h.logger.Debug("collect query:", "collects", collects)
-
 	excludes := r.URL.Query()["exclude[]"]
-	h.logger.Debug("exclude query:", "excludes", excludes)
-
-	if len(collects) == 0 && len(excludes) == 0 {
-		// No filters, use the prepared unfiltered handler.
-		h.unfilteredHandler.ServeHTTP(w, r)
-		return
-	}
 
 	if len(collects) > 0 && len(excludes) > 0 {
 		h.logger.Debug("rejecting combined collect and exclude queries")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Combined collect and exclude queries are not allowed."))
+		_, _ = w.Write([]byte("Combined collect and exclude queries are not allowed."))
 		return
 	}
 
-	filters := &collects
-	if len(excludes) > 0 {
-		// In exclude mode, filtered collectors = enabled - excludeed.
-		f := []string{}
-		for _, c := range h.enabledCollectors {
-			if (slices.Index(excludes, c)) == -1 {
-				f = append(f, c)
+	for _, name := range collects {
+		if !slices.Contains(h.knownCollectors, name) {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "unknown or disabled collector: %s", name)
+			return
+		}
+	}
+	for _, name := range excludes {
+		if !slices.Contains(h.knownCollectors, name) {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "unknown or disabled collector: %s", name)
+			return
+		}
+	}
+
+	dataGatherer := h.scraper.Gatherer()
+	switch {
+	case len(collects) > 0:
+		dataGatherer = h.scraper.FilteredGatherer(collects)
+	case len(excludes) > 0:
+		wanted := make([]string, 0, len(h.knownCollectors))
+		for _, n := range h.knownCollectors {
+			if !slices.Contains(excludes, n) {
+				wanted = append(wanted, n)
 			}
 		}
-		filters = &f
+		dataGatherer = h.scraper.FilteredGatherer(wanted)
 	}
 
-	// To serve filtered metrics, we create a filtering handler on the fly.
-	filteredHandler, err := h.innerHandler(*filters...)
-	if err != nil {
-		h.logger.Warn("Couldn't create filtered metrics handler:", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Couldn't create filtered metrics handler: %s", err)
-		return
+	var inner http.Handler
+	opts := promhttp.HandlerOpts{
+		ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
+		ErrorHandling:       promhttp.ContinueOnError,
+		MaxRequestsInFlight: h.maxRequests,
 	}
-	filteredHandler.ServeHTTP(w, r)
-}
-
-// innerHandler is used to create both the one unfiltered http.Handler to be
-// wrapped by the outer handler and also the filtered handlers created on the
-// fly. The former is accomplished by calling innerHandler without any arguments
-// (in which case it will log all the collectors enabled via command-line
-// flags).
-func (h *handler) innerHandler(filters ...string) (http.Handler, error) {
-	nc, err := collector.NewGarminCollector(h.logger, filters...)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create collector: %s", err)
-	}
-
-	// Only log the creation of an unfiltered handler, which should happen
-	// only once upon startup.
-	if len(filters) == 0 {
-		h.logger.Info("Enabled collectors")
-		for n := range nc.Collectors {
-			h.enabledCollectors = append(h.enabledCollectors, n)
-		}
-		sort.Strings(h.enabledCollectors)
-		for _, c := range h.enabledCollectors {
-			h.logger.Info(c)
-		}
-	}
-
-	r := prometheus.NewRegistry()
-	if len(filters) == 0 {
-		h.unfilteredRegistry = r
-	}
-	r.MustRegister(versioncollector.NewCollector("garmin_exporter"))
-	if err := r.Register(nc); err != nil {
-		return nil, fmt.Errorf("couldn't register collector: %s", err)
-	}
-
-	var handler http.Handler
 	if h.includeExporterMetrics {
-		handler = promhttp.HandlerFor(
-			prometheus.Gatherers{h.exporterMetricsRegistry, r},
-			promhttp.HandlerOpts{
-				ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
-				ErrorHandling:       promhttp.ContinueOnError,
-				MaxRequestsInFlight: h.maxRequests,
-				Registry:            h.exporterMetricsRegistry,
-			},
-		)
-		// Note that we have to use h.exporterMetricsRegistry here to
-		// use the same promhttp metrics for all expositions.
-		handler = promhttp.InstrumentMetricHandler(
-			h.exporterMetricsRegistry, handler,
-		)
+		opts.Registry = h.exporterMetricsRegistry
+		inner = promhttp.HandlerFor(prometheus.Gatherers{h.exporterMetricsRegistry, dataGatherer}, opts)
+		inner = promhttp.InstrumentMetricHandler(h.exporterMetricsRegistry, inner)
 	} else {
-		handler = promhttp.HandlerFor(
-			prometheus.Gatherers{h.exporterMetricsRegistry, r},
-			promhttp.HandlerOpts{
-				ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
-				ErrorHandling:       promhttp.ContinueOnError,
-				MaxRequestsInFlight: h.maxRequests,
-			},
-		)
+		inner = promhttp.HandlerFor(prometheus.Gatherers{h.exporterMetricsRegistry, dataGatherer}, opts)
 	}
-
-	return handler, nil
+	inner.ServeHTTP(w, r)
 }
 
+// Gatherers returns the union of the exporter meta-metrics registry and the
+// scraper's cached data gatherer. Used to feed the OTLP push pipeline.
 func (h *handler) Gatherers() prometheus.Gatherers {
-	return prometheus.Gatherers{h.exporterMetricsRegistry, h.unfilteredRegistry}
+	return prometheus.Gatherers{h.exporterMetricsRegistry, h.scraper.Gatherer()}
 }
 
 func main() {
@@ -217,9 +159,11 @@ func main() {
 		garminTokenFile = kingpin.Flag("garmin.token-file", "Path to cached OAuth2 token file.").Default("garmin_token.json").String()
 		garminLimit     = kingpin.Flag("garmin.activity-limit", "Number of recent activities to fetch.").Default("30").Int()
 
+		cacheTTL = kingpin.Flag("cache.ttl", "How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.").Default("1h").Duration()
+
 		otlpEndpoint = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP metrics push when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
 		otlpProtocol = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
-		otlpInterval = kingpin.Flag("otlp.interval", "OTLP push interval. Each push triggers a full Garmin API fetch, so keep this high to avoid rate limiting.").Default("1h").Duration()
+		otlpInterval = kingpin.Flag("otlp.interval", "OTLP push interval. Independent of --cache.ttl; pushes always send the most recent cached values.").Default("15s").Duration()
 	)
 
 	promslogConfig := &promslog.Config{}
@@ -237,8 +181,7 @@ func main() {
 	collector.SetActivityLimit(*garminLimit)
 	reauthCh := make(chan struct{}, 1)
 	collector.SetReauthChannel(reauthCh)
-	scrapeState := scrape.NewState()
-	collector.SetScrapeRecorder(scrapeState.Record)
+	scrapeOutcome := scrape.NewOutcome()
 	authState := auth.NewState()
 	mfaPrompt := func() (string, error) {
 		fmt.Fprint(os.Stderr, "MFA code (check your email): ")
@@ -256,16 +199,50 @@ func main() {
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
-	if user, err := user.Current(); err == nil && user.Uid == "0" {
+	if u, err := user.Current(); err == nil && u.Uid == "0" {
 		logger.Warn("Garmin Exporter is running as root user. This exporter is designed to run as unprivileged user, root is not required.")
 	}
 	runtime.GOMAXPROCS(*maxProcs)
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeState)
+	// Enumerate the enabled Garmin sub-collectors once for filter validation
+	// and landing-page logging.
+	bootstrapGC, err := collector.NewGarminCollector(logger)
+	if err != nil {
+		logger.Error("Couldn't enumerate collectors", "err", err)
+		os.Exit(1)
+	}
+	enabledNames := make([]string, 0, len(bootstrapGC.Collectors))
+	for n := range bootstrapGC.Collectors {
+		enabledNames = append(enabledNames, n)
+	}
+	sort.Strings(enabledNames)
+	logger.Info("Enabled collectors")
+	for _, n := range enabledNames {
+		logger.Info(n)
+	}
+
+	scrp := scrape.New(scrape.Config{
+		TTL:    *cacheTTL,
+		Logger: logger,
+		BuildCollectors: func() (map[string]prometheus.Collector, error) {
+			gc, err := collector.NewGarminCollector(logger)
+			if err != nil {
+				return nil, err
+			}
+			return gc.PromCollectors(), nil
+		},
+		AuthReady: authManager.Ready,
+		OnScrape:  scrapeOutcome.Record,
+	})
+	scraperCtx, cancelScraper := context.WithCancel(context.Background())
+	defer cancelScraper()
+	go scrp.Run(scraperCtx)
+
+	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeOutcome, scrp, enabledNames)
 	http.Handle(*metricsPath, h)
 	http.HandleFunc("/healthz", probes.Healthz)
-	http.Handle("/readyz", probes.Readyz(authState, scrapeState))
+	http.Handle("/readyz", probes.Readyz(authState, scrapeOutcome))
 
 	if *otlpEndpoint != "" {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -279,9 +256,9 @@ func main() {
 			os.Exit(1)
 		}
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := shutdown(ctx); err != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			if err := shutdown(shutdownCtx); err != nil {
 				logger.Error("OTLP shutdown error", "err", err)
 			}
 		}()

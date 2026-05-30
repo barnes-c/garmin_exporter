@@ -1,5 +1,3 @@
-// Package scrape tracks the most recent collector scrape outcome and exposes
-// it as both a readiness signal and a Prometheus metric.
 package scrape
 
 import (
@@ -16,8 +14,10 @@ var lastScrapeTimestampDesc = prometheus.NewDesc(
 	nil,
 )
 
-// State tracks the most recent scrape outcome.
-type State struct {
+// Outcome tracks the most recent scrape's success and timestamp. It is the
+// source of truth for both the /readyz probe and the
+// garmin_last_scrape_timestamp_seconds metric.
+type Outcome struct {
 	mtx       sync.RWMutex
 	recorded  bool
 	succeeded bool
@@ -26,45 +26,45 @@ type State struct {
 	now func() time.Time
 }
 
-// NewState returns an empty scrape state.
-func NewState() *State {
-	return &State{now: time.Now}
+// NewOutcome returns an empty scrape outcome.
+func NewOutcome() *Outcome {
+	return &Outcome{now: time.Now}
 }
 
 // Record marks the most recent scrape as succeeded or failed and stamps it
 // with the current time.
-func (s *State) Record(success bool) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	s.recorded = true
-	s.succeeded = success
-	s.timestamp = s.now()
+func (o *Outcome) Record(success bool) {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+	o.recorded = true
+	o.succeeded = success
+	o.timestamp = o.now()
 }
 
 // Ready reports whether the most recent scrape succeeded. Before the first
 // scrape it returns true so the readiness probe doesn't deadlock the very
 // first scrape that would update this state.
-func (s *State) Ready() bool {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-	if !s.recorded {
+func (o *Outcome) Ready() bool {
+	o.mtx.RLock()
+	defer o.mtx.RUnlock()
+	if !o.recorded {
 		return true
 	}
-	return s.succeeded
+	return o.succeeded
 }
 
 // Describe implements prometheus.Collector.
-func (s *State) Describe(ch chan<- *prometheus.Desc) {
+func (o *Outcome) Describe(ch chan<- *prometheus.Desc) {
 	ch <- lastScrapeTimestampDesc
 }
 
 // Collect implements prometheus.Collector.
-func (s *State) Collect(ch chan<- prometheus.Metric) {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+func (o *Outcome) Collect(ch chan<- prometheus.Metric) {
+	o.mtx.RLock()
+	defer o.mtx.RUnlock()
 	var ts float64
-	if s.recorded {
-		ts = float64(s.timestamp.Unix())
+	if o.recorded {
+		ts = float64(o.timestamp.Unix())
 	}
 	ch <- prometheus.MustNewConstMetric(lastScrapeTimestampDesc, prometheus.GaugeValue, ts)
 }

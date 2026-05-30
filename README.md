@@ -9,8 +9,6 @@ Prometheus exporter for [Garmin Connect](https://connect.garmin.com) health and 
 
 Listens on port **10045** by default.
 
-> **Note:** Each scrape calls the Garmin Connect API. Since health data updates at most a few times per day, a scrape interval of 6h–12h is recommended to avoid hammering Garmin's doors.
-
 ## Usage
 
 ### Binary
@@ -84,6 +82,7 @@ Credentials are passed via flags or environment variables:
 | `--garmin.password` | `GARMIN_PASSWORD` | *(required)* | Garmin Connect password |
 | `--garmin.token-file` | — | `garmin_token.json` | Path to the cached OAuth2 token file |
 | `--garmin.activity-limit` | — | `30` | Number of recent activities to fetch per scrape |
+| `--cache.ttl` | — | `1h` | How often to refresh data from Garmin Connect |
 
 Authentication status is exposed with these metrics:
 
@@ -170,7 +169,7 @@ The [OTel Prometheus bridge](https://pkg.go.dev/go.opentelemetry.io/contrib/brid
 |------|---------|---------|-------------|
 | `--otlp.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(disabled)* | OTLP collector endpoint (e.g. `localhost:4317`). Enables OTLP push when set. |
 | `--otlp.protocol` | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Transport protocol: `grpc` or `http/protobuf` |
-| `--otlp.interval` | — | `1h` | OTLP push interval. Each push triggers a full Garmin API fetch, so keep this high to avoid rate limiting. |
+| `--otlp.interval` | — | `15s` | OTLP push interval. Independent of `--cache.ttl`; each push sends the most recent cached values without triggering a Garmin API call. |
 
 The OTLP exporters also respect the standard `OTEL_EXPORTER_OTLP_*` environment variables for headers, TLS certificates, compression, and timeouts. See the [OTel specification](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) for the full list.
 
