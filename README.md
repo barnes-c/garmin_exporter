@@ -91,6 +91,7 @@ Authentication status is exposed with these metrics:
 |--------|-------------|
 | `garmin_auth_login_success` | `1` if the most recent login attempt succeeded, `0` otherwise |
 | `garmin_auth_next_retry_timestamp_seconds` | Unix timestamp of the next scheduled login attempt, or `0` when no retry is scheduled |
+| `garmin_last_scrape_timestamp_seconds` | Unix timestamp of the most recent metrics scrape, or `0` before the first scrape. Combine with `garmin_scrape_collector_success` to alert on stale data. |
 
 ## Collectors
 
