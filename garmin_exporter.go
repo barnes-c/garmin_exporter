@@ -28,6 +28,10 @@ import (
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 
 	"github.com/barnes-c/garmin_exporter/collector"
+	"github.com/barnes-c/garmin_exporter/internal/auth"
+	"github.com/barnes-c/garmin_exporter/internal/otlp"
+	"github.com/barnes-c/garmin_exporter/internal/probes"
+	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
 
 // handler wraps an unfiltered http.Handler but uses a filtered handler,
@@ -45,11 +49,11 @@ type handler struct {
 	includeExporterMetrics bool
 	maxRequests            int
 	logger                 *slog.Logger
-	authState              *authState
-	scrapeState            *scrapeState
+	authState              *auth.State
+	scrapeState            *scrape.State
 }
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *authState, scrapeState *scrapeState) *handler {
+func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *auth.State, scrapeState *scrape.State) *handler {
 	h := &handler{
 		exporterMetricsRegistry: prometheus.NewRegistry(),
 		includeExporterMetrics:  includeExporterMetrics,
@@ -233,9 +237,9 @@ func main() {
 	collector.SetActivityLimit(*garminLimit)
 	reauthCh := make(chan struct{}, 1)
 	collector.SetReauthChannel(reauthCh)
-	scrapeState := newScrapeState()
-	collector.SetScrapeRecorder(scrapeState.record)
-	authState := newAuthState()
+	scrapeState := scrape.NewState()
+	collector.SetScrapeRecorder(scrapeState.Record)
+	authState := auth.NewState()
 	mfaPrompt := func() (string, error) {
 		fmt.Fprint(os.Stderr, "MFA code (check your email): ")
 		scanner := bufio.NewScanner(os.Stdin)
@@ -247,8 +251,8 @@ func main() {
 		}
 		return strings.TrimSpace(scanner.Text()), nil
 	}
-	authManager := newAuthManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh, mfaPrompt)
-	go authManager.run()
+	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, reauthCh, mfaPrompt)
+	go authManager.Run()
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
 	logger.Info("Build context", "build_context", version.BuildContext())
@@ -260,15 +264,15 @@ func main() {
 
 	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeState)
 	http.Handle(*metricsPath, h)
-	http.HandleFunc("/healthz", healthzHandler)
-	http.Handle("/readyz", readyzHandler(authState, scrapeState))
+	http.HandleFunc("/healthz", probes.Healthz)
+	http.Handle("/readyz", probes.Readyz(authState, scrapeState))
 
 	if *otlpEndpoint != "" {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		shutdown, err := setupOTLP(ctx, h.Gatherers(), logger, otlpConfig{
-			protocol: *otlpProtocol,
-			interval: *otlpInterval,
+		shutdown, err := otlp.Setup(ctx, h.Gatherers(), logger, otlp.Config{
+			Protocol: *otlpProtocol,
+			Interval: *otlpInterval,
 		})
 		if err != nil {
 			logger.Error("Failed to setup OTLP", "err", err)

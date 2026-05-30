@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"errors"
@@ -19,11 +19,11 @@ func (failTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("no network in tests")
 }
 
-func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
+func TestManagerLoginFailureSchedulesRetry(t *testing.T) {
 	now := time.Unix(1000, 0)
-	state := newAuthState()
+	state := NewState()
 	var installedClient *garminconnect.Client
-	manager := authManager{
+	manager := Manager{
 		username: "user",
 		password: "pass",
 		logger:   slog.Default(),
@@ -37,7 +37,7 @@ func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
 			installedClient = client
 		},
 		state:  state,
-		delay:  authBackoffMin,
+		delay:  backoffMin,
 		now:    func() time.Time { return now },
 		jitter: func() time.Duration { return 0 },
 	}
@@ -53,7 +53,7 @@ func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
 		t.Fatal("expected failed login to clear the Garmin client")
 	}
 
-	success, nextRetry := state.snapshot()
+	success, nextRetry := state.Snapshot()
 	if success != 0 {
 		t.Fatalf("expected login success metric 0, got %v", success)
 	}
@@ -62,11 +62,11 @@ func TestAuthManagerLoginFailureSchedulesRetry(t *testing.T) {
 	}
 }
 
-func TestAuthManagerLoginSuccessInstallsClient(t *testing.T) {
-	state := newAuthState()
+func TestManagerLoginSuccessInstallsClient(t *testing.T) {
+	state := NewState()
 	client := &garminconnect.Client{}
 	var installedClient *garminconnect.Client
-	manager := authManager{
+	manager := Manager{
 		username: "user",
 		password: "pass",
 		logger:   slog.Default(),
@@ -77,7 +77,7 @@ func TestAuthManagerLoginSuccessInstallsClient(t *testing.T) {
 			installedClient = client
 		},
 		state:  state,
-		delay:  authBackoffMin,
+		delay:  backoffMin,
 		now:    time.Now,
 		jitter: func() time.Duration { return 0 },
 	}
@@ -93,7 +93,7 @@ func TestAuthManagerLoginSuccessInstallsClient(t *testing.T) {
 		t.Fatal("expected successful login to install the Garmin client")
 	}
 
-	success, nextRetry := state.snapshot()
+	success, nextRetry := state.Snapshot()
 	if success != 1 {
 		t.Fatalf("expected login success metric 1, got %v", success)
 	}
@@ -102,10 +102,10 @@ func TestAuthManagerLoginSuccessInstallsClient(t *testing.T) {
 	}
 }
 
-func TestAuthManagerBackoffDelayIsCapped(t *testing.T) {
+func TestManagerBackoffDelayIsCapped(t *testing.T) {
 	now := time.Unix(1000, 0)
-	state := newAuthState()
-	manager := authManager{
+	state := NewState()
+	manager := Manager{
 		logger: slog.Default(),
 		login: func(username, password string) (*garminconnect.Client, error) {
 			return nil, errors.New("rate limited")
@@ -125,20 +125,20 @@ func TestAuthManagerBackoffDelayIsCapped(t *testing.T) {
 		if delay != want {
 			t.Fatalf("expected retry delay %s, got %s", want, delay)
 		}
-		_, nextRetry := state.snapshot()
+		_, nextRetry := state.Snapshot()
 		if nextRetry != float64(now.Add(want).Unix()) {
 			t.Fatalf("expected next retry timestamp %v, got %v", now.Add(want).Unix(), nextRetry)
 		}
 	}
 }
 
-func TestAuthManagerRunReauthOnSignal(t *testing.T) {
+func TestManagerRunReauthOnSignal(t *testing.T) {
 	reauthCh := make(chan struct{}, 1)
 	loginCount := 0
 	second := make(chan struct{})
 	client := &garminconnect.Client{}
 
-	manager := authManager{
+	manager := Manager{
 		username: "user",
 		password: "pass",
 		logger:   slog.Default(),
@@ -150,7 +150,7 @@ func TestAuthManagerRunReauthOnSignal(t *testing.T) {
 			return client, nil
 		},
 		setClient: func(*garminconnect.Client) {},
-		state:     newAuthState(),
+		state:     NewState(),
 		delay:     time.Millisecond,
 		reauthCh:  reauthCh,
 		now:       time.Now,
@@ -158,7 +158,7 @@ func TestAuthManagerRunReauthOnSignal(t *testing.T) {
 		jitter:    func() time.Duration { return 0 },
 	}
 
-	go manager.run()
+	go manager.Run()
 	reauthCh <- struct{}{}
 
 	select {
@@ -171,10 +171,10 @@ func TestAuthManagerRunReauthOnSignal(t *testing.T) {
 	}
 }
 
-func TestNewAuthManagerLoginPassesMFAPrompt(t *testing.T) {
+func TestNewManagerLoginPassesMFAPrompt(t *testing.T) {
 	var capturedOpts []garminconnect.Option
 	mfaPrompt := func() (string, error) { return "123456", nil }
-	m := newAuthManager("user", "pass", "", slog.Default(), newAuthState(), nil, mfaPrompt)
+	m := NewManager("user", "pass", "", slog.Default(), NewState(), nil, mfaPrompt)
 	m.newClient = func(tokenFile string, opts ...garminconnect.Option) *garminconnect.Client {
 		capturedOpts = opts
 		return garminconnect.NewClient(tokenFile, garminconnect.WithHTTPClient(&http.Client{Transport: failTransport{}}))
@@ -185,9 +185,9 @@ func TestNewAuthManagerLoginPassesMFAPrompt(t *testing.T) {
 	}
 }
 
-func TestAuthStateCollectsMetrics(t *testing.T) {
-	state := newAuthState()
-	state.setLoginFailure(time.Unix(1234, 0))
+func TestStateCollectsMetrics(t *testing.T) {
+	state := NewState()
+	state.SetLoginFailure(time.Unix(1234, 0))
 
 	registry := prometheus.NewRegistry()
 	if err := registry.Register(state); err != nil {
