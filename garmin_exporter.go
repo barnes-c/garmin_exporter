@@ -231,6 +231,8 @@ func main() {
 	collector.SetActivityLimit(*garminLimit)
 	reauthCh := make(chan struct{}, 1)
 	collector.SetReauthChannel(reauthCh)
+	scrapeState := newScrapeState()
+	collector.SetScrapeRecorder(scrapeState.record)
 	authState := newAuthState()
 	mfaPrompt := func() (string, error) {
 		fmt.Fprint(os.Stderr, "MFA code (check your email): ")
@@ -256,6 +258,8 @@ func main() {
 
 	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState)
 	http.Handle(*metricsPath, h)
+	http.HandleFunc("/healthz", healthzHandler)
+	http.Handle("/readyz", readyzHandler(authState, scrapeState))
 
 	if *otlpEndpoint != "" {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -286,6 +290,14 @@ func main() {
 				{
 					Address: *metricsPath,
 					Text:    "Metrics",
+				},
+				{
+					Address: "/healthz",
+					Text:    "Health",
+				},
+				{
+					Address: "/readyz",
+					Text:    "Readiness",
 				},
 			},
 		}

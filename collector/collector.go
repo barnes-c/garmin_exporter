@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -49,7 +50,27 @@ var (
 
 	reauthMu sync.Mutex
 	reauthCh chan<- struct{}
+
+	scrapeRecorderMu sync.RWMutex
+	scrapeRecorder   func(success bool)
 )
+
+// SetScrapeRecorder registers a callback invoked after each scrape with
+// whether the scrape produced data from at least one collector.
+func SetScrapeRecorder(fn func(success bool)) {
+	scrapeRecorderMu.Lock()
+	defer scrapeRecorderMu.Unlock()
+	scrapeRecorder = fn
+}
+
+func recordScrape(success bool) {
+	scrapeRecorderMu.RLock()
+	fn := scrapeRecorder
+	scrapeRecorderMu.RUnlock()
+	if fn != nil {
+		fn(success)
+	}
+}
 
 // SetReauthChannel registers a buffered channel that receives a signal
 // whenever a collector encounters ErrUnauthorized, triggering a re-login.
@@ -180,20 +201,28 @@ func (n GarminCollector) Describe(ch chan<- *prometheus.Desc) {
 func (n GarminCollector) Collect(ch chan<- prometheus.Metric) {
 	wg := sync.WaitGroup{}
 	wg.Add(len(n.Collectors))
+	var ok atomic.Int32
 	for name, c := range n.Collectors {
 		go func(name string, c Collector) {
-			execute(name, c, ch, n.logger)
-			wg.Done()
+			defer wg.Done()
+			if execute(name, c, ch, n.logger) {
+				ok.Add(1)
+			}
 		}(name, c)
 	}
 	wg.Wait()
+	recordScrape(ok.Load() > 0)
 }
 
-func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog.Logger) {
+// execute runs a single collector and returns true if it ran without a real
+// error. ErrNoData counts as "ran without error" — the collector worked,
+// there was simply nothing to expose.
+func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog.Logger) bool {
 	begin := time.Now()
 	err := c.Update(ch)
 	duration := time.Since(begin)
 	var success float64
+	ok := true
 
 	if err != nil {
 		if IsNoDataError(err) {
@@ -203,6 +232,7 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 			if errors.Is(err, garminconnect.ErrUnauthorized) {
 				signalReauth()
 			}
+			ok = false
 		}
 		success = 0
 	} else {
@@ -211,6 +241,7 @@ func execute(name string, c Collector, ch chan<- prometheus.Metric, logger *slog
 	}
 	ch <- prometheus.MustNewConstMetric(scrapeDurationDesc, prometheus.GaugeValue, duration.Seconds(), name)
 	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, name)
+	return ok
 }
 
 // Collector is the interface a collector has to implement.
