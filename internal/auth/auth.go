@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"context"
 	"log/slog"
 	"math/rand"
 	"sync"
@@ -101,6 +102,9 @@ type Manager struct {
 	delay     time.Duration
 	reauthCh  <-chan struct{}
 
+	readyOnce sync.Once
+	readyCh   chan struct{}
+
 	// For testing.
 	now    func() time.Time
 	sleep  func(time.Duration)
@@ -119,6 +123,7 @@ func NewManager(username, password, tokenFile string, logger *slog.Logger, state
 		state:     state,
 		delay:     backoffMin,
 		reauthCh:  reauthCh,
+		readyCh:   make(chan struct{}),
 		now:       time.Now,
 		sleep:     time.Sleep,
 		jitter:    func() time.Duration { return time.Duration(rand.Int63n(int64(backoffMin))) },
@@ -166,12 +171,24 @@ func (m *Manager) Run() {
 	}
 }
 
+// Ready blocks until the first successful login has completed, or returns
+// ctx.Err() if ctx is cancelled first. Subsequent calls return immediately.
+func (m *Manager) Ready(ctx context.Context) error {
+	select {
+	case <-m.readyCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (m *Manager) attemptLogin() (time.Duration, bool) {
 	garminClient, err := m.login(m.username, m.password)
 	if err == nil {
 		m.setClient(garminClient)
 		m.state.SetLoginSuccess()
 		m.resetDelay()
+		m.readyOnce.Do(func() { close(m.readyCh) })
 		m.logger.Info("Garmin login succeeded")
 		return 0, true
 	}

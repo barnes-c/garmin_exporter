@@ -33,7 +33,7 @@ func TestFileDescriptorLeak(t *testing.T) {
 		t.Errorf("unable to read process stats: %s", err)
 	}
 
-	exporter := exec.Command(binary, "--web.listen-address", address)
+	exporter := exec.Command(binary, "--web.listen-address", address, "--cache.ttl=24h")
 	test := func(pid int) error {
 		if err := queryExporter(address); err != nil {
 			return err

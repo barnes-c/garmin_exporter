@@ -16,42 +16,42 @@ func TestReadyz(t *testing.T) {
 	tests := []struct {
 		name        string
 		setupAuth   func(*auth.State)
-		setupScrape func(*scrape.State)
+		setupScrape func(*scrape.Outcome)
 		wantStatus  int
 		wantBody    string
 	}{
 		{
 			name:        "not authenticated",
 			setupAuth:   func(*auth.State) {},
-			setupScrape: func(*scrape.State) {},
+			setupScrape: func(*scrape.Outcome) {},
 			wantStatus:  http.StatusServiceUnavailable,
 			wantBody:    "not authenticated",
 		},
 		{
 			name:        "login failed",
 			setupAuth:   func(s *auth.State) { s.SetLoginFailure(time.Now().Add(time.Minute)) },
-			setupScrape: func(*scrape.State) {},
+			setupScrape: func(*scrape.Outcome) {},
 			wantStatus:  http.StatusServiceUnavailable,
 			wantBody:    "not authenticated",
 		},
 		{
 			name:        "authenticated, no scrape yet",
 			setupAuth:   func(s *auth.State) { s.SetLoginSuccess() },
-			setupScrape: func(*scrape.State) {},
+			setupScrape: func(*scrape.Outcome) {},
 			wantStatus:  http.StatusOK,
 			wantBody:    "ok",
 		},
 		{
 			name:        "authenticated, last scrape succeeded",
 			setupAuth:   func(s *auth.State) { s.SetLoginSuccess() },
-			setupScrape: func(s *scrape.State) { s.Record(true) },
+			setupScrape: func(s *scrape.Outcome) { s.Record(true) },
 			wantStatus:  http.StatusOK,
 			wantBody:    "ok",
 		},
 		{
 			name:        "authenticated, last scrape failed",
 			setupAuth:   func(s *auth.State) { s.SetLoginSuccess() },
-			setupScrape: func(s *scrape.State) { s.Record(false) },
+			setupScrape: func(s *scrape.Outcome) { s.Record(false) },
 			wantStatus:  http.StatusServiceUnavailable,
 			wantBody:    "last scrape failed",
 		},
@@ -60,13 +60,13 @@ func TestReadyz(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			authState := auth.NewState()
-			scrapeState := scrape.NewState()
+			scrapeOutcome := scrape.NewOutcome()
 			tc.setupAuth(authState)
-			tc.setupScrape(scrapeState)
+			tc.setupScrape(scrapeOutcome)
 
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			Readyz(authState, scrapeState).ServeHTTP(rr, req)
+			Readyz(authState, scrapeOutcome).ServeHTTP(rr, req)
 
 			if want, have := tc.wantStatus, rr.Code; want != have {
 				t.Errorf("want status %d, have %d", want, have)

@@ -9,7 +9,7 @@ import (
 
 // Readyz returns 200 OK once authentication has succeeded and the most recent
 // scrape produced data, otherwise 503 Service Unavailable.
-func Readyz(authState *auth.State, scrapeState *scrape.State) http.HandlerFunc {
+func Readyz(authState *auth.State, scrapeOutcome *scrape.Outcome) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		loginSuccess, _ := authState.Snapshot()
@@ -18,7 +18,7 @@ func Readyz(authState *auth.State, scrapeState *scrape.State) http.HandlerFunc {
 			_, _ = w.Write([]byte("not authenticated\n"))
 			return
 		}
-		if !scrapeState.Ready() {
+		if !scrapeOutcome.Ready() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte("last scrape failed\n"))
 			return

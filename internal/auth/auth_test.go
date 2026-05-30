@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -76,10 +77,11 @@ func TestManagerLoginSuccessInstallsClient(t *testing.T) {
 		setClient: func(client *garminconnect.Client) {
 			installedClient = client
 		},
-		state:  state,
-		delay:  backoffMin,
-		now:    time.Now,
-		jitter: func() time.Duration { return 0 },
+		state:   state,
+		delay:   backoffMin,
+		readyCh: make(chan struct{}),
+		now:     time.Now,
+		jitter:  func() time.Duration { return 0 },
 	}
 
 	delay, ok := manager.attemptLogin()
@@ -153,6 +155,7 @@ func TestManagerRunReauthOnSignal(t *testing.T) {
 		state:     NewState(),
 		delay:     time.Millisecond,
 		reauthCh:  reauthCh,
+		readyCh:   make(chan struct{}),
 		now:       time.Now,
 		sleep:     func(time.Duration) {},
 		jitter:    func() time.Duration { return 0 },
@@ -168,6 +171,53 @@ func TestManagerRunReauthOnSignal(t *testing.T) {
 	}
 	if loginCount != 2 {
 		t.Fatalf("expected 2 login calls, got %d", loginCount)
+	}
+}
+
+func TestManagerReadySignalsOnFirstSuccess(t *testing.T) {
+	loginErr := errors.New("rate limited")
+	loginCount := 0
+	manager := Manager{
+		logger: slog.Default(),
+		login: func(string, string) (*garminconnect.Client, error) {
+			loginCount++
+			if loginCount == 1 {
+				return nil, loginErr
+			}
+			return &garminconnect.Client{}, nil
+		},
+		setClient: func(*garminconnect.Client) {},
+		state:     NewState(),
+		delay:     backoffMin,
+		readyCh:   make(chan struct{}),
+		now:       time.Now,
+		jitter:    func() time.Duration { return 0 },
+	}
+
+	// First attempt fails; Ready must not return yet.
+	if _, ok := manager.attemptLogin(); ok {
+		t.Fatal("expected first login to fail")
+	}
+	earlyCtx, earlyCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer earlyCancel()
+	if err := manager.Ready(earlyCtx); err == nil {
+		t.Fatal("expected Ready to block before first successful login")
+	}
+
+	// Second attempt succeeds; Ready must return nil.
+	if _, ok := manager.attemptLogin(); !ok {
+		t.Fatal("expected second login to succeed")
+	}
+	if err := manager.Ready(context.Background()); err != nil {
+		t.Fatalf("expected Ready to return nil after success, got %v", err)
+	}
+
+	// Subsequent successes must not panic (sync.Once guards the close).
+	if _, ok := manager.attemptLogin(); !ok {
+		t.Fatal("expected third login to succeed")
+	}
+	if err := manager.Ready(context.Background()); err != nil {
+		t.Fatalf("expected Ready to keep returning nil, got %v", err)
 	}
 }
 
