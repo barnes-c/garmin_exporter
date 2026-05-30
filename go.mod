@@ -7,7 +7,7 @@ require (
 	github.com/barnes-c/go-garminconnect v0.1.5
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.5
+	github.com/prometheus/common v0.68.0
 	github.com/prometheus/exporter-toolkit v0.16.0
 	github.com/prometheus/procfs v0.20.1
 	go.opentelemetry.io/contrib/bridges/prometheus v0.69.0
