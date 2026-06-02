@@ -125,6 +125,20 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	inner.ServeHTTP(w, r)
 }
 
+// refreshHandler handles POST /refresh. Returns 409 if a refresh is already
+// in-flight, 405 for non-POST methods.
+func (h *handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	ran, _ := h.scraper.Refresh(r.Context())
+	if !ran {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte("refresh already in flight"))
+	}
+}
+
 // Gatherers returns the union of the exporter meta-metrics registry and the
 // scraper's cached data gatherer. Used to feed the OTLP push pipeline.
 func (h *handler) Gatherers() prometheus.Gatherers {
@@ -241,6 +255,7 @@ func main() {
 	http.Handle(*metricsPath, h)
 	http.HandleFunc("/healthz", probes.Healthz)
 	http.Handle("/readyz", probes.Readyz(authState, scrapeOutcome))
+	http.HandleFunc("/refresh", h.refreshHandler)
 
 	if *otlpEndpoint != "" {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -279,6 +294,10 @@ func main() {
 				{
 					Address: "/readyz",
 					Text:    "Readiness",
+				},
+				{
+					Address: "/refresh",
+					Text:    "Refresh (POST)",
 				},
 			},
 		}

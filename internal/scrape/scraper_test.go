@@ -80,7 +80,7 @@ func TestRefreshAtomicSwap(t *testing.T) {
 	ctx := context.Background()
 	for i := int64(1); i <= 50; i++ {
 		c.val.Store(i)
-		_ = s.Refresh(ctx)
+		s.Refresh(ctx)
 	}
 	close(stop)
 	if errPtr := readErr.Load(); errPtr != nil {
@@ -159,10 +159,10 @@ func TestOverlapProtection(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
+	go func() { defer wg.Done(); s.Refresh(context.Background()) }()
 	// Wait for the first refresh to actually be inside BuildCollectors.
 	<-started
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
+	go func() { defer wg.Done(); s.Refresh(context.Background()) }()
 	// The second call should return immediately due to semaphore.
 	time.Sleep(20 * time.Millisecond)
 	if got := buildCalls.Load(); got != 1 {
@@ -198,7 +198,7 @@ func TestOnScrapeWired(t *testing.T) {
 				BuildCollectors: func() (map[string]prometheus.Collector, error) { return tc.collectors, nil },
 				OnScrape:        func(b bool) { got.Store(b); called.Store(true) },
 			})
-			_ = s.Refresh(context.Background())
+			s.Refresh(context.Background())
 			if !called.Load() {
 				t.Fatal("OnScrape never called")
 			}
@@ -241,7 +241,7 @@ func TestFilteredGathererIntersect(t *testing.T) {
 		},
 		OnScrape: func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	families, err := s.FilteredGatherer([]string{"alpha"}).Gather()
 	if err != nil {
@@ -273,7 +273,7 @@ func TestBuildCollectorsError(t *testing.T) {
 		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, wantErr },
 		OnScrape:        func(b bool) { success.Store(b); called.Store(true) },
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 	if !called.Load() {
 		t.Fatal("OnScrape never called on build error")
 	}
@@ -291,7 +291,7 @@ func TestRefreshTotalSuccess(t *testing.T) {
 		},
 		OnScrape: func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSuccess)); got != 1 {
 		t.Fatalf("expected 1 success refresh, got %v", got)
@@ -307,7 +307,7 @@ func TestRefreshTotalFailureOnEmpty(t *testing.T) {
 		BuildCollectors: func() (map[string]prometheus.Collector, error) { return map[string]prometheus.Collector{}, nil },
 		OnScrape:        func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
 		t.Fatalf("expected 1 failure refresh, got %v", got)
@@ -320,7 +320,7 @@ func TestRefreshTotalFailureOnBuildError(t *testing.T) {
 		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, errors.New("boom") },
 		OnScrape:        func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
 		t.Fatalf("expected 1 failure refresh, got %v", got)
@@ -342,10 +342,13 @@ func TestRefreshTotalSkipped(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
+	go func() { defer wg.Done(); s.Refresh(context.Background()) }()
 	<-started
 	// Second concurrent refresh hits the semaphore and is skipped.
-	_ = s.Refresh(context.Background())
+	ran, _ := s.Refresh(context.Background())
+	if ran {
+		t.Fatal("expected second Refresh to report skipped (false), got true")
+	}
 	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSkipped)); got != 1 {
 		t.Fatalf("expected 1 skipped refresh, got %v", got)
 	}
@@ -362,7 +365,7 @@ func TestRefreshDurationObserved(t *testing.T) {
 		},
 		OnScrape: func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	families := gatherScraperFamilies(t, s)
 	hist := findFamily(families, "garmin_cache_refresh_duration_seconds")
@@ -390,7 +393,7 @@ func TestCacheAgeAfterRefresh(t *testing.T) {
 		},
 		OnScrape: func(bool) {},
 	})
-	_ = s.Refresh(context.Background())
+	s.Refresh(context.Background())
 
 	families := gatherScraperFamilies(t, s)
 	age := findFamily(families, "garmin_cache_age_seconds")

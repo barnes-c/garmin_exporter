@@ -141,23 +141,21 @@ func (s *Scraper) Run(ctx context.Context) {
 	}
 }
 
-// Refresh runs a single refresh synchronously. Returns nil if it ran or if
-// another refresh was already in flight (in which case it returns
-// immediately without waiting). Useful for tests and an eventual admin
-// "/refresh" endpoint.
-func (s *Scraper) Refresh(ctx context.Context) error {
-	s.refreshOnce(ctx)
-	return nil
+// Refresh runs a single synchronous refresh. Returns (true, nil) on success,
+// (false, nil) if another refresh was already in flight. The caller can use
+// the bool to return HTTP 409 for the /refresh admin endpoint.
+func (s *Scraper) Refresh(ctx context.Context) (bool, error) {
+	return s.refreshOnce(ctx), nil
 }
 
-func (s *Scraper) refreshOnce(ctx context.Context) {
+func (s *Scraper) refreshOnce(ctx context.Context) bool {
 	select {
 	case s.sem <- struct{}{}:
 		defer func() { <-s.sem }()
 	default:
 		s.cfg.Logger.Warn("skipping refresh: previous still running")
 		s.refreshTotal.WithLabelValues(refreshResultSkipped).Inc()
-		return
+		return false
 	}
 	s.refreshInFlight.Store(1)
 	defer s.refreshInFlight.Store(0)
@@ -169,7 +167,7 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		s.cfg.Logger.Error("build collectors", "err", err)
 		s.cfg.OnScrape(false)
 		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
-		return
+		return true
 	}
 
 	type result struct {
@@ -215,7 +213,7 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 	wg.Wait()
 
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 
 	snap := &snapshot{
@@ -249,6 +247,7 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
 	}
 	s.cfg.Logger.Debug("refresh complete", "duration_seconds", time.Since(snap.builtAt).Seconds(), "success", anySuccess)
+	return true
 }
 
 // Gatherer returns a Gatherer that serves the most recent snapshot. Before

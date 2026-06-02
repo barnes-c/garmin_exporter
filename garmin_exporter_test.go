@@ -3,15 +3,26 @@ package main
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/procfs"
+
+	"github.com/barnes-c/garmin_exporter/internal/auth"
+	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 var (
 	binary = filepath.Join(os.Getenv("GOPATH"), "bin/garmin_exporter")
@@ -20,6 +31,70 @@ var (
 const (
 	address = "localhost:110043"
 )
+
+func newTestHandler(buildCollectors func() (map[string]prometheus.Collector, error)) *handler {
+	scrp := scrape.New(scrape.Config{
+		Logger:          discardLogger(),
+		BuildCollectors: buildCollectors,
+		OnScrape:        func(bool) {},
+	})
+	authState := auth.NewState()
+	outcome := scrape.NewOutcome()
+	return newHandler(false, 0, discardLogger(), authState, outcome, scrp, nil)
+}
+
+func TestRefreshHandlerMethodNotAllowed(t *testing.T) {
+	h := newTestHandler(func() (map[string]prometheus.Collector, error) {
+		return map[string]prometheus.Collector{}, nil
+	})
+	req := httptest.NewRequest(http.MethodGet, "/refresh", nil)
+	w := httptest.NewRecorder()
+	h.refreshHandler(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestRefreshHandlerSuccess(t *testing.T) {
+	h := newTestHandler(func() (map[string]prometheus.Collector, error) {
+		return map[string]prometheus.Collector{}, nil
+	})
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	w := httptest.NewRecorder()
+	h.refreshHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestRefreshHandlerConflict(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	h := newTestHandler(func() (map[string]prometheus.Collector, error) {
+		close(started)
+		<-release
+		return map[string]prometheus.Collector{}, nil
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		h.refreshHandler(httptest.NewRecorder(), req)
+	}()
+	<-started
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	w := httptest.NewRecorder()
+	h.refreshHandler(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", w.Code)
+	}
+
+	close(release)
+	wg.Wait()
+}
 
 func TestFileDescriptorLeak(t *testing.T) {
 	if _, err := os.Stat(binary); err != nil {
