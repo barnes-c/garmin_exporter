@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 
@@ -26,13 +27,13 @@ func newCyclingCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *cyclingCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *cyclingCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	result, err := client.CyclingFTP()
+	result, err := client.CyclingFTP(ctx)
 	if err != nil {
 		return err
 	}

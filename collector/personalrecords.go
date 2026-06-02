@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,13 +26,13 @@ func newPersonalRecordsCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *personalRecordsCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *personalRecordsCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	records, err := client.PersonalRecords()
+	records, err := client.PersonalRecords(ctx)
 	if err != nil {
 		return err
 	}

@@ -4,8 +4,8 @@ github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b h1:mimo19zliBX/vS
 github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b/go.mod h1:fvzegU4vN3H1qMT+8wDmzjAcDONcgo2/SZ/TyfdUOFs=
 github.com/andybalholm/brotli v1.2.1 h1:R+f5xP285VArJDRgowrfb9DqL18yVK0gKAW/F+eTWro=
 github.com/andybalholm/brotli v1.2.1/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
-github.com/barnes-c/go-garminconnect v0.1.5 h1:12EvpJX477Q25FwGRAZUUsRp+aVo9ef0B6J/tM6yiS0=
-github.com/barnes-c/go-garminconnect v0.1.5/go.mod h1:QsBX6XQHg0dgK22xazAaucMm+4TxunIvJJ3fx2dQkfk=
+github.com/barnes-c/go-garminconnect v0.1.6 h1:ZtBOaRTh7Y4F4hYwQ61hW3JT2xGoidbZLRCqQHAj9/8=
+github.com/barnes-c/go-garminconnect v0.1.6/go.mod h1:FPthuobDGRc2eYnnqnS1UecU7S4E6Ubnh+2WAAFyu7M=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=

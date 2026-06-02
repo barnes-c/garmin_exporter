@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -47,19 +48,19 @@ func newActivitiesCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *activitiesCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *activitiesCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	if total, err := client.ActivityCount(); err != nil {
+	if total, err := client.ActivityCount(ctx); err != nil {
 		c.logger.Warn("failed to fetch lifetime activity count", "err", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.lifetimeCount, prometheus.GaugeValue, float64(total))
 	}
 
-	activities, err := client.Activities(activityLimit)
+	activities, err := client.Activities(ctx, activityLimit)
 	if err != nil {
 		return err
 	}

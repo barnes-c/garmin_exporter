@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -31,13 +32,13 @@ func newSpO2Collector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *spO2Collector) Update(ch chan<- prometheus.Metric) error {
+func (c *spO2Collector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	s, err := client.SpO2(time.Now())
+	s, err := client.SpO2(ctx, time.Now())
 	if err != nil {
 		return err
 	}

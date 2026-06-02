@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -31,13 +32,13 @@ func newRespirationCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *respirationCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *respirationCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	r, err := client.Respiration(time.Now())
+	r, err := client.Respiration(ctx, time.Now())
 	if err != nil {
 		return err
 	}

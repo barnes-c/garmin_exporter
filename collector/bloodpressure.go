@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -31,14 +32,14 @@ func newBloodPressureCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bloodPressureCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bloodPressureCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	bp, err := client.BloodPressure(now.AddDate(0, -1, 0), now)
+	bp, err := client.BloodPressure(ctx, now.AddDate(0, -1, 0), now)
 	if err != nil {
 		return err
 	}

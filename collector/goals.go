@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,20 +29,20 @@ func newGoalsCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *goalsCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *goalsCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	goals, err := client.Goals("active", 0, 100)
+	goals, err := client.Goals(ctx, "active", 0, 100)
 	if err != nil {
 		c.logger.Debug("goals unavailable", "err", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.activeGoals, prometheus.GaugeValue, float64(len(goals)))
 	}
 
-	badges, err := client.EarnedBadges()
+	badges, err := client.EarnedBadges(ctx)
 	if err != nil {
 		c.logger.Debug("badges unavailable", "err", err)
 	} else {

@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -32,18 +33,18 @@ func newGearCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *gearCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *gearCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	summary, err := client.UserSummary(time.Now())
+	summary, err := client.UserSummary(ctx, time.Now())
 	if err != nil {
 		return err
 	}
 
-	gear, err := client.Gear(summary.UserProfileID)
+	gear, err := client.Gear(ctx, summary.UserProfileID)
 	if err != nil {
 		return err
 	}

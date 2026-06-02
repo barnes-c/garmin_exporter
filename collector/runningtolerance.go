@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -29,14 +30,14 @@ func newRunningToleranceCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *runningToleranceCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *runningToleranceCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	entries, err := client.RunningTolerance(now.AddDate(0, 0, -7), now)
+	entries, err := client.RunningTolerance(ctx, now.AddDate(0, 0, -7), now)
 	if err != nil {
 		return err
 	}

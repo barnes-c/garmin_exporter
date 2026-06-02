@@ -130,7 +130,7 @@ func NewManager(username, password, tokenFile string, logger *slog.Logger, state
 	}
 	m.login = func(username, password string) (*garminconnect.Client, error) {
 		garminClient := m.newClient(tokenFile, garminconnect.WithMFAPrompt(mfaPrompt))
-		if err := garminClient.Login(username, password); err != nil {
+		if err := garminClient.Login(context.Background(), username, password); err != nil {
 			return nil, err
 		}
 		return garminClient, nil

@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -41,14 +42,14 @@ func newBodyCompositionCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bodyCompositionCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bodyCompositionCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
 	now := time.Now()
-	bc, err := client.BodyComposition(now.AddDate(0, 0, -30), now)
+	bc, err := client.BodyComposition(ctx, now.AddDate(0, 0, -30), now)
 	if err != nil {
 		return err
 	}

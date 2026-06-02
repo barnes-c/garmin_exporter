@@ -2,6 +2,7 @@
 package collector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -159,6 +160,13 @@ type adapter struct {
 	mu             sync.Mutex
 	err            error
 	onUnauthorized func()
+	ctx            context.Context
+}
+
+// SetContext stores ctx so it is available during the next Collect call.
+// Called by the scraper before reg.Gather() to thread request context through.
+func (a *adapter) SetContext(ctx context.Context) {
+	a.ctx = ctx
 }
 
 func newAdapter(c Collector, opts ...AdapterOption) *adapter {
@@ -174,7 +182,11 @@ func (a *adapter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (a *adapter) Collect(ch chan<- prometheus.Metric) {
-	err := a.inner.Update(ch)
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	err := a.inner.Update(ctx, ch)
 	a.mu.Lock()
 	if err != nil && !IsNoDataError(err) {
 		a.err = err
@@ -197,7 +209,7 @@ func (a *adapter) LastError() error {
 // Collector is the interface a collector has to implement.
 type Collector interface {
 	// Get new metrics and expose them via prometheus registry.
-	Update(ch chan<- prometheus.Metric) error
+	Update(ctx context.Context, ch chan<- prometheus.Metric) error
 }
 
 // ErrNoData indicates the collector found no data to collect, but had no other error.

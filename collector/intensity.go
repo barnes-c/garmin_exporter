@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -31,13 +32,13 @@ func newIntensityCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *intensityCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *intensityCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	im, err := client.IntensityMinutes(time.Now())
+	im, err := client.IntensityMinutes(ctx, time.Now())
 	if err != nil {
 		return err
 	}
