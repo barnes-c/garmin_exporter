@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -41,13 +42,13 @@ func newTrainingStatusCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *trainingStatusCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *trainingStatusCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	resp, err := client.TrainingStatus(time.Now())
+	resp, err := client.TrainingStatus(ctx, time.Now())
 	if err != nil {
 		return err
 	}

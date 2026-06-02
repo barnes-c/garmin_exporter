@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"strconv"
 
@@ -32,13 +33,13 @@ func newDevicesCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *devicesCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *devicesCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	devices, err := client.Devices()
+	devices, err := client.Devices(ctx)
 	if err != nil {
 		return err
 	}

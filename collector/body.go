@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -41,13 +42,13 @@ func newBodyCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *bodyCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *bodyCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	resp, err := client.DailyWeighIns(time.Now())
+	resp, err := client.DailyWeighIns(ctx, time.Now())
 	if err != nil {
 		return err
 	}

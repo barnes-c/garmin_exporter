@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -63,14 +64,14 @@ func newSleepCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *sleepCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 	now := time.Now()
 
-	s, err := client.SleepData(now)
+	s, err := client.SleepData(ctx, now)
 	if err != nil {
 		return err
 	}
@@ -106,13 +107,13 @@ func (c *sleepCollector) Update(ch chan<- prometheus.Metric) error {
 		g(c.spO2Low, dto.SpO2LowReadingPercent)
 	}
 
-	c.collectHRV(ch, now)
+	c.collectHRV(ctx, ch, now)
 	return nil
 }
 
-func (c *sleepCollector) collectHRV(ch chan<- prometheus.Metric, now time.Time) {
+func (c *sleepCollector) collectHRV(ctx context.Context, ch chan<- prometheus.Metric, now time.Time) {
 	client := getClient()
-	h, err := client.HRVData(now)
+	h, err := client.HRVData(ctx, now)
 	if err != nil {
 		c.logger.Debug("HRV data unavailable", "err", err)
 		return

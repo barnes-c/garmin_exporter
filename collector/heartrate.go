@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -33,13 +34,13 @@ func newHeartRateCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *heartRateCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *heartRateCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	hr, err := client.HeartRates(time.Now())
+	hr, err := client.HeartRates(ctx, time.Now())
 	if err != nil {
 		return err
 	}

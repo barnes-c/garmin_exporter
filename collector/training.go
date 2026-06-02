@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"time"
@@ -53,22 +54,22 @@ func newTrainingCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *trainingCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *trainingCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 	now := time.Now()
-	c.collectReadiness(client, now, ch)
-	c.collectMaxMetrics(client, now, ch)
-	c.collectRacePredictions(client, ch)
-	c.collectEnduranceScore(client, now, ch)
-	c.collectHillScore(client, now, ch)
+	c.collectReadiness(ctx, client, now, ch)
+	c.collectMaxMetrics(ctx, client, now, ch)
+	c.collectRacePredictions(ctx, client, ch)
+	c.collectEnduranceScore(ctx, client, now, ch)
+	c.collectHillScore(ctx, client, now, ch)
 	return nil
 }
 
-func (c *trainingCollector) collectReadiness(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
-	readiness, err := client.TrainingReadiness(now)
+func (c *trainingCollector) collectReadiness(ctx context.Context, client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
+	readiness, err := client.TrainingReadiness(ctx, now)
 	if err != nil {
 		c.logger.Debug("training readiness unavailable", "err", err)
 		return
@@ -93,8 +94,8 @@ func (c *trainingCollector) collectReadiness(client *garminconnect.Client, now t
 	}
 }
 
-func (c *trainingCollector) collectMaxMetrics(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
-	metrics, err := client.MaxMetrics(now.AddDate(0, 0, -30), now)
+func (c *trainingCollector) collectMaxMetrics(ctx context.Context, client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
+	metrics, err := client.MaxMetrics(ctx, now.AddDate(0, 0, -30), now)
 	if err != nil {
 		c.logger.Debug("max metrics unavailable", "err", err)
 		return
@@ -121,8 +122,8 @@ func (c *trainingCollector) collectMaxMetrics(client *garminconnect.Client, now 
 	}
 }
 
-func (c *trainingCollector) collectRacePredictions(client *garminconnect.Client, ch chan<- prometheus.Metric) {
-	preds, err := client.RacePredictions()
+func (c *trainingCollector) collectRacePredictions(ctx context.Context, client *garminconnect.Client, ch chan<- prometheus.Metric) {
+	preds, err := client.RacePredictions(ctx)
 	if err != nil {
 		c.logger.Debug("race predictions unavailable", "err", err)
 		return
@@ -147,8 +148,8 @@ func (c *trainingCollector) collectRacePredictions(client *garminconnect.Client,
 	}
 }
 
-func (c *trainingCollector) collectEnduranceScore(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
-	endurance, err := client.EnduranceScore(now.AddDate(0, 0, -7), now)
+func (c *trainingCollector) collectEnduranceScore(ctx context.Context, client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
+	endurance, err := client.EnduranceScore(ctx, now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("endurance score unavailable", "err", err)
 		return
@@ -165,8 +166,8 @@ func (c *trainingCollector) collectEnduranceScore(client *garminconnect.Client, 
 	}
 }
 
-func (c *trainingCollector) collectHillScore(client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
-	hill, err := client.HillScore(now.AddDate(0, 0, -7), now)
+func (c *trainingCollector) collectHillScore(ctx context.Context, client *garminconnect.Client, now time.Time, ch chan<- prometheus.Metric) {
+	hill, err := client.HillScore(ctx, now.AddDate(0, 0, -7), now)
 	if err != nil {
 		c.logger.Debug("hill score unavailable", "err", err)
 		return

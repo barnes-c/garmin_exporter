@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,13 +31,13 @@ func newLactateThresholdCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *lactateThresholdCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *lactateThresholdCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	entries, err := client.LactateThreshold()
+	entries, err := client.LactateThreshold(ctx)
 	if err != nil {
 		return err
 	}

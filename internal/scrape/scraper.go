@@ -186,6 +186,9 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		go func(name string, c prometheus.Collector) {
 			defer wg.Done()
 			r := result{name: name}
+			if cs, ok := c.(contextSetter); ok {
+				cs.SetContext(ctx)
+			}
 			reg := prometheus.NewRegistry()
 			if regErr := reg.Register(c); regErr != nil {
 				s.cfg.Logger.Error("register collector", "name", name, "err", regErr)
@@ -302,6 +305,12 @@ func (s *Scraper) FilteredGatherer(names []string) prometheus.Gatherer {
 		}
 		return mergeFamilies(buckets), nil
 	})
+}
+
+// contextSetter is implemented by collector adapters that accept a context
+// before Gather is called.
+type contextSetter interface {
+	SetContext(context.Context)
 }
 
 type gathererFunc func() ([]*dto.MetricFamily, error)

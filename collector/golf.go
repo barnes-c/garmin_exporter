@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,13 +29,13 @@ func newGolfCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *golfCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *golfCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	scorecards, err := client.GolfSummary(0, 1)
+	scorecards, err := client.GolfSummary(ctx, 0, 1)
 	if err != nil {
 		return err
 	}

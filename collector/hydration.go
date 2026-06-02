@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -35,13 +36,13 @@ func newHydrationCollector(logger *slog.Logger) (Collector, error) {
 	}, nil
 }
 
-func (c *hydrationCollector) Update(ch chan<- prometheus.Metric) error {
+func (c *hydrationCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
 	client := getClient()
 	if client == nil {
 		return ErrNoData
 	}
 
-	h, err := client.Hydration(time.Now())
+	h, err := client.Hydration(ctx, time.Now())
 	if err != nil {
 		return err
 	}
