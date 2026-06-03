@@ -43,7 +43,7 @@ func TestManagerLoginFailureSchedulesRetry(t *testing.T) {
 		jitter: func() time.Duration { return 0 },
 	}
 
-	delay, ok := manager.attemptLogin()
+	delay, ok := manager.attemptLogin(context.Background())
 	if ok {
 		t.Fatal("expected login attempt to fail")
 	}
@@ -84,7 +84,7 @@ func TestManagerLoginSuccessInstallsClient(t *testing.T) {
 		jitter:  func() time.Duration { return 0 },
 	}
 
-	delay, ok := manager.attemptLogin()
+	delay, ok := manager.attemptLogin(context.Background())
 	if !ok {
 		t.Fatal("expected login attempt to succeed")
 	}
@@ -120,7 +120,7 @@ func TestManagerBackoffDelayIsCapped(t *testing.T) {
 	}
 
 	for _, want := range []time.Duration{time.Hour, 2 * time.Hour, 3 * time.Hour, 3 * time.Hour} {
-		delay, ok := manager.attemptLogin()
+		delay, ok := manager.attemptLogin(context.Background())
 		if ok {
 			t.Fatal("expected login attempt to fail")
 		}
@@ -208,7 +208,7 @@ func TestManagerReadySignalsOnFirstSuccess(t *testing.T) {
 	}
 
 	// First attempt fails; Ready must not return yet.
-	if _, ok := manager.attemptLogin(); ok {
+	if _, ok := manager.attemptLogin(context.Background()); ok {
 		t.Fatal("expected first login to fail")
 	}
 	earlyCtx, earlyCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
@@ -218,7 +218,7 @@ func TestManagerReadySignalsOnFirstSuccess(t *testing.T) {
 	}
 
 	// Second attempt succeeds; Ready must return nil.
-	if _, ok := manager.attemptLogin(); !ok {
+	if _, ok := manager.attemptLogin(context.Background()); !ok {
 		t.Fatal("expected second login to succeed")
 	}
 	if err := manager.Ready(context.Background()); err != nil {
@@ -226,7 +226,7 @@ func TestManagerReadySignalsOnFirstSuccess(t *testing.T) {
 	}
 
 	// Subsequent successes must not panic (sync.Once guards the close).
-	if _, ok := manager.attemptLogin(); !ok {
+	if _, ok := manager.attemptLogin(context.Background()); !ok {
 		t.Fatal("expected third login to succeed")
 	}
 	if err := manager.Ready(context.Background()); err != nil {

@@ -11,6 +11,9 @@ import (
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/barnes-c/garmin_exporter/collector"
 )
@@ -151,8 +154,9 @@ func (m *Manager) resetDelay() {
 // Run runs the login loop: attempts an initial login (retrying on failure),
 // then re-logs in whenever a signal arrives on reauthCh.
 func (m *Manager) Run() {
+	ctx := context.Background()
 	for {
-		delay, ok := m.attemptLogin()
+		delay, ok := m.attemptLogin(ctx)
 		if ok {
 			break
 		}
@@ -162,7 +166,7 @@ func (m *Manager) Run() {
 		m.logger.Info("re-authenticating due to stale token")
 		m.resetDelay()
 		for {
-			delay, ok := m.attemptLogin()
+			delay, ok := m.attemptLogin(ctx)
 			if ok {
 				break
 			}
@@ -191,9 +195,14 @@ func (m *Manager) TriggerReauth() {
 	}
 }
 
-func (m *Manager) attemptLogin() (time.Duration, bool) {
+func (m *Manager) attemptLogin(ctx context.Context) (time.Duration, bool) {
+	tracer := otel.Tracer("garmin_exporter/auth")
+	_, span := tracer.Start(ctx, "garmin.auth.login")
+	defer span.End()
+
 	garminClient, err := m.login(m.username, m.password)
 	if err == nil {
+		span.SetAttributes(attribute.Bool("garmin.auth.success", true))
 		m.setClient(garminClient)
 		m.state.SetLoginSuccess()
 		m.resetDelay()
@@ -202,8 +211,13 @@ func (m *Manager) attemptLogin() (time.Duration, bool) {
 		return 0, true
 	}
 
+	span.RecordError(err)
+	span.SetStatus(codes.Error, "login failed")
+	span.SetAttributes(attribute.Bool("garmin.auth.success", false))
+
 	delay := m.nextDelay()
 	nextRetry := m.now().Add(delay)
+	span.SetAttributes(attribute.String("garmin.auth.next_retry", nextRetry.Format(time.RFC3339)))
 	m.setClient(nil)
 	m.state.SetLoginFailure(nextRetry)
 	m.logger.Error("Garmin login failed", "err", err, "retry_after", delay, "next_retry", nextRetry.Unix())

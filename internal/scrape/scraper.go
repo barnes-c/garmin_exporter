@@ -9,6 +9,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var (
@@ -164,13 +167,21 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 	start := time.Now()
 	defer func() { s.refreshDuration.Observe(time.Since(start).Seconds()) }()
 
+	tracer := otel.Tracer("garmin_exporter/scrape")
+	ctx, rootSpan := tracer.Start(ctx, "garmin.refresh")
+	defer rootSpan.End()
+
 	cols, err := s.cfg.BuildCollectors()
 	if err != nil {
+		rootSpan.RecordError(err)
+		rootSpan.SetStatus(codes.Error, "build collectors failed")
 		s.cfg.Logger.Error("build collectors", "err", err)
 		s.cfg.OnScrape(false)
 		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
 		return
 	}
+
+	rootSpan.SetAttributes(attribute.Int("garmin.collectors.count", len(cols)))
 
 	type result struct {
 		name     string
@@ -185,12 +196,17 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		wg.Add(1)
 		go func(name string, c prometheus.Collector) {
 			defer wg.Done()
+			_, collSpan := tracer.Start(ctx, "garmin.collect."+name)
+			defer collSpan.End()
+
 			r := result{name: name}
 			if cs, ok := c.(contextSetter); ok {
 				cs.SetContext(ctx)
 			}
 			reg := prometheus.NewRegistry()
 			if regErr := reg.Register(c); regErr != nil {
+				collSpan.RecordError(regErr)
+				collSpan.SetStatus(codes.Error, "register failed")
 				s.cfg.Logger.Error("register collector", "name", name, "err", regErr)
 				mu.Lock()
 				results = append(results, r)
@@ -207,6 +223,16 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 					r.success = false
 				}
 			}
+			if !r.success {
+				if gErr != nil {
+					collSpan.RecordError(gErr)
+				}
+				collSpan.SetStatus(codes.Error, "collect failed")
+			}
+			collSpan.SetAttributes(
+				attribute.Bool("garmin.collector.success", r.success),
+				attribute.Float64("garmin.collector.duration_seconds", r.duration.Seconds()),
+			)
 			mu.Lock()
 			results = append(results, r)
 			mu.Unlock()
@@ -247,6 +273,10 @@ func (s *Scraper) refreshOnce(ctx context.Context) {
 		s.refreshTotal.WithLabelValues(refreshResultSuccess).Inc()
 	} else {
 		s.refreshTotal.WithLabelValues(refreshResultFailure).Inc()
+	}
+	rootSpan.SetAttributes(attribute.Bool("garmin.refresh.success", anySuccess))
+	if !anySuccess {
+		rootSpan.SetStatus(codes.Error, "no collector succeeded")
 	}
 	s.cfg.Logger.Debug("refresh complete", "duration_seconds", time.Since(snap.builtAt).Seconds(), "success", anySuccess)
 }
