@@ -245,7 +245,12 @@ func main() {
 	http.HandleFunc("/healthz", probes.Healthz)
 	http.Handle("/readyz", probes.Readyz(authState, scrapeOutcome))
 
-	if *otlpEndpoint != "" {
+	otlpEnabled := *otlpEndpoint != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") != ""
+
+	if otlpEnabled {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		shutdown, otlpLogger, err := otlp.Setup(ctx, h.Gatherers(), logger, otlp.Config{
