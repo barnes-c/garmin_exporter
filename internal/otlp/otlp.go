@@ -4,6 +4,7 @@
 package otlp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -87,15 +88,9 @@ func (m multiHandler) WithGroup(name string) slog.Handler {
 // cfg.TracesExporter, and cfg.LogsExporter (each defaults to "otlp" when
 // empty; set to "none" to disable).
 func Setup(ctx context.Context, gatherer prometheus.Gatherer, logger *slog.Logger, cfg Config) (func(context.Context) error, *slog.Logger, error) {
-	if cfg.MetricsExporter == "" {
-		cfg.MetricsExporter = "otlp"
-	}
-	if cfg.TracesExporter == "" {
-		cfg.TracesExporter = "otlp"
-	}
-	if cfg.LogsExporter == "" {
-		cfg.LogsExporter = "otlp"
-	}
+	cfg.MetricsExporter = cmp.Or(cfg.MetricsExporter, "otlp")
+	cfg.TracesExporter = cmp.Or(cfg.TracesExporter, "otlp")
+	cfg.LogsExporter = cmp.Or(cfg.LogsExporter, "otlp")
 
 	res, err := resource.Merge(
 		resource.Default(),
