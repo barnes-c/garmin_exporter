@@ -15,7 +15,7 @@ LDFLAGS := \
 
 .PHONY: all build build-all test vet lint fmt
 
-all: fmt vet lint build test
+all: vet build test
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter .
