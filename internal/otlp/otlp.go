@@ -5,6 +5,7 @@ package otlp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -50,14 +51,15 @@ func (m multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (m multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	var errs []error
 	for _, h := range m {
 		if h.Enabled(ctx, r.Level) {
 			if err := h.Handle(ctx, r.Clone()); err != nil {
-				return err
+				errs = append(errs, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (m multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
