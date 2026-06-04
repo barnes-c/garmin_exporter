@@ -14,10 +14,10 @@ import (
 // errorHandler always returns an error from Handle.
 type errorHandler struct{ err error }
 
-func (e *errorHandler) Enabled(_ context.Context, _ slog.Level) bool    { return true }
-func (e *errorHandler) Handle(_ context.Context, _ slog.Record) error   { return e.err }
-func (e *errorHandler) WithAttrs(_ []slog.Attr) slog.Handler            { return e }
-func (e *errorHandler) WithGroup(_ string) slog.Handler                 { return e }
+func (e *errorHandler) Enabled(_ context.Context, _ slog.Level) bool  { return true }
+func (e *errorHandler) Handle(_ context.Context, _ slog.Record) error { return e.err }
+func (e *errorHandler) WithAttrs(_ []slog.Attr) slog.Handler          { return e }
+func (e *errorHandler) WithGroup(_ string) slog.Handler               { return e }
 
 // captureHandler records Handle calls and propagates WithAttrs/WithGroup immutably.
 type captureHandler struct {
