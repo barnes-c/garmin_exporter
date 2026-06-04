@@ -12,7 +12,7 @@ linters:
             - "!$test"
           deny:
             - pkg: os/exec
-              desc: Using os/exec to run sub processes it not allowed by policy
+              desc: Using os/exec to run sub processes is not allowed by policy
     errcheck:
       # Used in HTTP handlers, any error is handled by the server itself.
       exclude-functions:
@@ -28,14 +28,10 @@ linters:
       - comments
       - common-false-positives
       - legacy
-      - std-error-handling
     rules:
       - linters:
           - errcheck
         path: _test.go
-      - linters:
-          - unused
-        path: collector/collector.go
 formatters:
   enable:
     - goimports
