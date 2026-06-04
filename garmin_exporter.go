@@ -83,14 +83,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, name := range collects {
 		if !slices.Contains(h.knownCollectors, name) {
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "unknown or disabled collector: %s", name)
+			_, _ = fmt.Fprintf(w, "unknown or disabled collector: %s", name)
 			return
 		}
 	}
 	for _, name := range excludes {
 		if !slices.Contains(h.knownCollectors, name) {
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "unknown or disabled collector: %s", name)
+			_, _ = fmt.Fprintf(w, "unknown or disabled collector: %s", name)
 			return
 		}
 	}

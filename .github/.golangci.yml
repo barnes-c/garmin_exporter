@@ -28,7 +28,6 @@ linters:
       - comments
       - common-false-positives
       - legacy
-      - std-error-handling
     rules:
       - linters:
           - errcheck
