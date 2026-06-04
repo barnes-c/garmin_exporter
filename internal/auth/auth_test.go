@@ -242,7 +242,9 @@ func TestNewManagerLoginPassesMFAPrompt(t *testing.T) {
 		capturedOpts = opts
 		return garminconnect.NewClient(tokenFile, garminconnect.WithHTTPClient(&http.Client{Transport: failTransport{}}))
 	}
-	m.login("user", "pass") //login failure expected
+	if _, err := m.login("user", "pass"); err == nil {
+		t.Fatal("expected login to fail")
+	}
 	if len(capturedOpts) != 1 {
 		t.Fatalf("expected 1 opt (WithMFAPrompt), got %d", len(capturedOpts))
 	}
