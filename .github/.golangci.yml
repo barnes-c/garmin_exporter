@@ -12,7 +12,7 @@ linters:
             - "!$test"
           deny:
             - pkg: os/exec
-              desc: Using os/exec to run sub processes it not allowed by policy
+              desc: Using os/exec to run sub processes is not allowed by policy
     errcheck:
       # Used in HTTP handlers, any error is handled by the server itself.
       exclude-functions:
