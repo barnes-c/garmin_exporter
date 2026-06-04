@@ -196,15 +196,8 @@ func main() {
 		return strings.TrimSpace(scanner.Text()), nil
 	}
 	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, mfaPrompt)
-	go authManager.Run()
 
-	logger.Info("Starting garmin_exporter", "version", version.Info())
-	logger.Info("Build context", "build_context", version.BuildContext())
-	if u, err := user.Current(); err == nil && u.Uid == "0" {
-		logger.Warn("Garmin Exporter is running as root user. This exporter is designed to run as unprivileged user, root is not required.")
-	}
 	runtime.GOMAXPROCS(*maxProcs)
-	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
 	// Enumerate the enabled Garmin sub-collectors once for filter validation
 	// and landing-page logging.
@@ -245,20 +238,30 @@ func main() {
 	http.HandleFunc("/healthz", probes.Healthz)
 	http.Handle("/readyz", probes.Readyz(authState, scrapeOutcome))
 
-	otlpEnabled := *otlpEndpoint != "" ||
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" ||
-		os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") != "" ||
-		os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") != ""
+	genericEndpoint := *otlpEndpoint != ""
 
-	if otlpEnabled {
+	metricsExporter := *otlpMetricsExporter
+	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") == "" {
+		metricsExporter = "none"
+	}
+	tracesExporter := *otlpTracesExporter
+	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" {
+		tracesExporter = "none"
+	}
+	logsExporter := *otlpLogsExporter
+	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") == "" {
+		logsExporter = "none"
+	}
+
+	if metricsExporter != "none" || tracesExporter != "none" || logsExporter != "none" {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		shutdown, otlpLogger, err := otlp.Setup(ctx, h.Gatherers(), logger, otlp.Config{
 			Protocol:        *otlpProtocol,
 			Interval:        *otlpInterval,
-			MetricsExporter: *otlpMetricsExporter,
-			TracesExporter:  *otlpTracesExporter,
-			LogsExporter:    *otlpLogsExporter,
+			MetricsExporter: metricsExporter,
+			TracesExporter:  tracesExporter,
+			LogsExporter:    logsExporter,
 		})
 		if err != nil {
 			logger.Error("Failed to setup OTLP", "err", err)
@@ -275,6 +278,16 @@ func main() {
 			}
 		}()
 	}
+
+	logger.Info("Starting garmin_exporter", "version", version.Info())
+	logger.Info("Build context", "build_context", version.BuildContext())
+	if u, err := user.Current(); err == nil && u.Uid == "0" {
+		logger.Warn("Garmin Exporter is running as root user. This exporter is designed to run as unprivileged user, root is not required.")
+	}
+	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
+
+	authManager.SetLogger(logger)
+	go authManager.Run()
 
 	if *metricsPath != "/" {
 		landingConfig := web.LandingConfig{

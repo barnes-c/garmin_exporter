@@ -114,6 +114,11 @@ type Manager struct {
 	jitter func() time.Duration
 }
 
+// SetLogger replaces the logger used by the manager. Must be called before Run.
+func (m *Manager) SetLogger(l *slog.Logger) {
+	m.logger = l
+}
+
 // NewManager constructs a Manager. Logins use the supplied username and
 // password; successful clients are installed into the collector package.
 func NewManager(username, password, tokenFile string, logger *slog.Logger, state *State, mfaPrompt func() (string, error)) *Manager {
