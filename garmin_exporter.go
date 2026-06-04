@@ -161,9 +161,9 @@ func main() {
 
 		cacheTTL = kingpin.Flag("cache.ttl", "How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.").Default("1h").Duration()
 
-		otlpEndpoint         = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP export when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
-		otlpProtocol         = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
-		otlpInterval         = kingpin.Flag("otlp.interval", "OTLP push interval. Independent of --cache.ttl; pushes always send the most recent cached values.").Default("15s").Duration()
+		otlpEndpoint        = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP export when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
+		otlpProtocol        = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
+		otlpInterval        = kingpin.Flag("otlp.interval", "OTLP push interval. Independent of --cache.ttl; pushes always send the most recent cached values.").Default("15s").Duration()
 		otlpMetricsExporter = kingpin.Flag("otlp.metrics-exporter", "OTLP metrics exporter. Set to \"none\" to disable metrics export.").Envar("OTEL_METRICS_EXPORTER").Default("otlp").String()
 		otlpTracesExporter  = kingpin.Flag("otlp.traces-exporter", "OTLP traces exporter. Set to \"none\" to disable traces export.").Envar("OTEL_TRACES_EXPORTER").Default("otlp").String()
 		otlpLogsExporter    = kingpin.Flag("otlp.logs-exporter", "OTLP logs exporter. Set to \"none\" to disable logs export.").Envar("OTEL_LOGS_EXPORTER").Default("otlp").String()
