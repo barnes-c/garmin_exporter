@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -X github.com/prometheus/common/version.Revision=${COMMIT} \
     -X github.com/prometheus/common/version.Branch=${BRANCH} \
     -X github.com/prometheus/common/version.BuildDate=${DATE}" \
-    -o garmin_exporter .
+    -o garmin-exporter .
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:963fa6c544fe5ce420f1f54fb88b6fb01479f054c8056d0f74cc2c6000df5240
 ARG DATE
