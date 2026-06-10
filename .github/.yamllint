@@ -1,8 +1,5 @@
 ---
 extends: default
-ignore: |
-  **/node_modules
-  web/api/v1/testdata/openapi_*_golden.yaml
 
 rules:
   braces:
@@ -14,7 +11,7 @@ rules:
   commas: disable
   comments: disable
   comments-indentation: disable
-  document-start: disable
+  document-start: enable
   indentation:
     spaces: consistent
     indent-sequences: consistent
