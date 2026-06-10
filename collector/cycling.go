@@ -2,54 +2,61 @@ package collector
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("cycling", defaultEnabled, newCyclingCollector)
+	registerCollector("cycling", DefaultEnabled, newCyclingCollector)
 }
 
 type cyclingCollector struct {
-	ftp    *prometheus.Desc
-	logger *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	ftp metric.Float64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newCyclingCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "cycling"
-	return &cyclingCollector{
-		ftp: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "ftp_watts"),
-			"Cycling functional threshold power in watts.", nil, nil),
-		logger: logger,
-	}, nil
+func newCyclingCollector(log *slog.Logger) (Collector, error) {
+	return &cyclingCollector{log: log}, nil
 }
 
-func (c *cyclingCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *cyclingCollector) Name() string { return "cycling" }
 
-	result, err := client.CyclingFTP(ctx)
+func (c *cyclingCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.ftp, err = meter.Float64ObservableGauge(
+		"garmin.cycling.ftp_watts",
+		metric.WithDescription("Cycling functional threshold power in watts."),
+		metric.WithUnit("W"),
+	)
 	if err != nil {
 		return err
 	}
 
-	raw, ok := result["mostRecentBiometric"]
-	if !ok {
-		return ErrNoData
-	}
+	c.registration, err = meter.RegisterCallback(c.observe, c.ftp)
+	return err
+}
 
-	var bio struct {
-		Value float64 `json:"value"`
+func (c *cyclingCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Cycling == nil || snap.Cycling.FTPWatts == 0 {
+		return nil
 	}
-	if err := json.Unmarshal(raw, &bio); err != nil || bio.Value == 0 {
-		return ErrNoData
-	}
-
-	ch <- prometheus.MustNewConstMetric(c.ftp, prometheus.GaugeValue, bio.Value)
+	o.ObserveFloat64(c.ftp, snap.Cycling.FTPWatts)
 	return nil
+}
+
+func (c *cyclingCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

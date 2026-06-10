@@ -90,16 +90,8 @@ Authentication status is exposed with these metrics:
 |--------|-------------|
 | `garmin_auth_login_success` | `1` if the most recent login attempt succeeded, `0` otherwise |
 | `garmin_auth_next_retry_timestamp_seconds` | Unix timestamp of the next scheduled login attempt, or `0` when no retry is scheduled |
-| `garmin_last_scrape_timestamp_seconds` | Unix timestamp of the most recent metrics scrape, or `0` before the first scrape. Combine with `garmin_scrape_collector_success` to alert on stale data. |
 
-Cache observability is exposed with these metrics:
-
-| Metric | Description |
-|--------|-------------|
-| `garmin_cache_age_seconds` | Seconds since the most recent cache refresh; `0` before the first refresh. Alert if it exceeds 2 × `--cache.ttl`. |
-| `garmin_cache_refresh_total{result="success\|failure\|skipped"}` | Counter of refresh attempts. `skipped` means a refresh was dropped because a previous one was still running. |
-| `garmin_cache_refresh_duration_seconds` | Histogram of refresh durations. |
-| `garmin_cache_refresh_in_flight` | `1` while a refresh is running, `0` otherwise. |
+For scrape liveness, use `/readyz` (see [Health and readiness](#health-and-readiness)) — it returns `503` when the auth client is missing or when the cached snapshot is stale relative to `--cache.ttl`.
 
 ## Collectors
 
@@ -139,18 +131,6 @@ All collectors are enabled by default. Individual collectors can be disabled wit
 
 Enable with `--collector.golf`.
 
-## Filtering collectors per scrape
-
-Pass `collect[]` or `exclude[]` query parameters to scrape only specific collectors:
-
-```
-# Only wellness and sleep
-curl 'localhost:10045/metrics?collect[]=wellness&collect[]=sleep'
-
-# Everything except activities
-curl 'localhost:10045/metrics?exclude[]=activities'
-```
-
 ## Building
 
 ```bash
@@ -166,34 +146,45 @@ make build
 make test
 ```
 
-## OTLP metrics push
+## OpenTelemetry
 
-The exporter can optionally push metrics to any [OpenTelemetry](https://opentelemetry.io/) collector via OTLP, in addition to the standard Prometheus pull endpoint. OTLP push is **disabled by default** and activates when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+The exporter is OTel-native: every collector registers OTel observable instruments on a single MeterProvider. The `/metrics` endpoint is served by the OTel SDK's Prometheus reader, which always emits the legacy Prometheus names (`garmin_heartrate_resting_bpm`, etc.). Additional signals (traces, logs) and push exporters layer on top of the same MeterProvider.
 
-The [OTel Prometheus bridge](https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/prometheus) reads from the existing Prometheus registries — no instrumentation changes needed.
+OTLP push and the trace/log pipelines are **disabled by default** — you have to opt in with one of the signal-selector flags below. Set any of `--otel.metrics-exporter`, `--otel.traces-exporter`, or `--otel.logs-exporter` to `otlp` (or set `OTEL_EXPORTER_OTLP_ENDPOINT`) to activate them.
 
 ### Configuration
 
 | Flag | Env var | Default | Description |
 |------|---------|---------|-------------|
-| `--otlp.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(disabled)* | OTLP collector endpoint (e.g. `localhost:4317`). Enables OTLP push when set. |
-| `--otlp.protocol` | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Transport protocol: `grpc` or `http/protobuf` |
-| `--otlp.interval` | — | `15s` | OTLP push interval. Independent of `--cache.ttl`; each push sends the most recent cached values without triggering a Garmin API call. |
+| `--otel.metrics-exporter` | `OTEL_METRICS_EXPORTER` | *(disabled)* | Comma-separated push exporters (`otlp`, `console`, `none`). `/metrics` is always served regardless. |
+| `--otel.traces-exporter` | `OTEL_TRACES_EXPORTER` | *(disabled)* | Traces exporter (`otlp`, `console`, `none`). |
+| `--otel.logs-exporter` | `OTEL_LOGS_EXPORTER` | *(disabled)* | Logs exporter (`otlp`, `console`, `none`). When enabled, the exporter's logs are tee'd through OTel in addition to stderr. |
+| `--otel.otlp.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | *(empty)* | OTLP collector endpoint (e.g. `localhost:4317`). |
+| `--otel.otlp.protocol` | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Transport protocol: `grpc` or `http/protobuf`. |
+| `--otel.otlp.interval` | — | `15s` | OTLP metrics push interval. Independent of `--cache.ttl`; each push sends the most recent cached values without triggering a Garmin API call. |
+| `--otel.trace-sample-rate` | — | `1.0` | Trace sample rate (0 < rate ≤ 1). |
+| `--otel.service-name` | `OTEL_SERVICE_NAME` | `garmin-exporter` | `service.name` resource attribute. |
+| `--web.prometheus` | — | `true` | Serve `/metrics`. Disable for OTLP-push-only deployments. |
+| `--otel.config-file` | `OTEL_CONFIG_FILE` | *(unused)* | Path to an OTel declarative YAML config (otelconf). When set, every other `--otel.*` flag is ignored per the OTel spec. |
 
 The OTLP exporters also respect the standard `OTEL_EXPORTER_OTLP_*` environment variables for headers, TLS certificates, compression, and timeouts. See the [OTel specification](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) for the full list.
 
 ### Examples
 
 ```bash
-# gRPC to a local collector
-OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 \
-  ./garmin_exporter
+# gRPC to a local collector — push metrics in addition to /metrics
+./garmin_exporter \
+  --otel.metrics-exporter=otlp \
+  --otel.otlp.endpoint=localhost:4317
 
-# HTTP with authentication
-OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example.com \
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
+# HTTP with authentication, all three signals
 OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_TOKEN" \
-  ./garmin_exporter
+  ./garmin_exporter \
+    --otel.metrics-exporter=otlp \
+    --otel.traces-exporter=otlp \
+    --otel.logs-exporter=otlp \
+    --otel.otlp.endpoint=https://otlp.example.com \
+    --otel.otlp.protocol=http/protobuf
 ```
 
 ### Docker Compose
@@ -207,6 +198,7 @@ services:
     environment:
       GARMIN_USERNAME: you@example.com
       GARMIN_PASSWORD: yourpassword
+      OTEL_METRICS_EXPORTER: otlp
       OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.example.com
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer YOUR_TOKEN"
@@ -224,9 +216,9 @@ The exporter exposes two endpoints for liveness and readiness probes:
 | Path | Status | Meaning |
 |------|--------|---------|
 | `/healthz` | always `200 OK` | Process is alive |
-| `/readyz` | `200 OK` when Garmin login has succeeded and the most recent scrape produced data, otherwise `503 Service Unavailable` | Exporter is ready to serve fresh metrics |
+| `/readyz` | `200 OK` when Garmin login has succeeded and the cached snapshot is fresh, otherwise `503 Service Unavailable` | Exporter is ready to serve fresh metrics |
 
-`/readyz` reports ready as soon as login succeeds. After the first scrape it also reflects the most recent scrape: if every collector failed (typically because Garmin is unreachable or rate-limiting), it flips back to `503` until a later scrape recovers.
+`/readyz` runs two checks: `auth` is healthy once login has succeeded (and flips back to unhealthy if a re-auth fails); `scrape` is healthy as long as the most recent successful refresh is no older than `3 × --cache.ttl`.
 
 Example Kubernetes probes:
 
