@@ -27,13 +27,13 @@ LABEL org.opencontainers.image.description="Exporter for Garmin Connect health a
 LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.licenses="Apache License 2.0"
 LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_exporter"
-LABEL org.opencontainers.image.title="garmin_exporter"
+LABEL org.opencontainers.image.title="Garmin Exporter"
 LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.vendor="Christopher Barnes"
 
-COPY --from=builder /src/garmin_exporter /bin/garmin_exporter
+COPY --from=builder /src/garmin-exporter /bin/garmin-exporter
 COPY --from=builder --chown=65532:65532 /data /data
 COPY LICENSE /
 
 EXPOSE      10045
-ENTRYPOINT  [ "/bin/garmin_exporter" ]
+ENTRYPOINT  [ "/bin/garmin-exporter" ]
