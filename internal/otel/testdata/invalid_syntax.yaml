@@ -1,3 +1,4 @@
+---
 this: is: not: valid: yaml
   - mismatched
 indent
