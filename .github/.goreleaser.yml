@@ -38,51 +38,22 @@ archives:
       - README.md
       - CHANGELOG.md
 
-dockers:
-  - id: amd64
-    image_templates:
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-amd64"
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-amd64"
-    use: buildx
+dockers_v2:
+  - id: garmin-exporter
     dockerfile: Dockerfile.release
-    goos: linux
-    goarch: amd64
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-  - id: arm64
-    image_templates:
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-arm64"
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-arm64"
-    use: buildx
-    dockerfile: Dockerfile.release
-    goos: linux
-    goarch: arm64
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.created={{ .Date }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-
-docker_manifests:
-  - name_template: "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-amd64"
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/barnes-c/garmin-exporter:latest"
-    image_templates:
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-amd64"
-      - "ghcr.io/barnes-c/garmin-exporter:{{ .Version }}-arm64"
-  - name_template: "docker.io/barnesbiz/garmin-exporter:{{ .Version }}"
-    image_templates:
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-amd64"
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-arm64"
-  - name_template: "docker.io/barnesbiz/garmin-exporter:latest"
-    image_templates:
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-amd64"
-      - "docker.io/barnesbiz/garmin-exporter:{{ .Version }}-arm64"
+    images:
+      - "ghcr.io/barnes-c/garmin-exporter"
+      - "docker.io/barnesbiz/garmin-exporter"
+    tags:
+      - "{{ .Version }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    build_args:
+      COMMIT: "{{ .FullCommit }}"
+      DATE: "{{ .Date }}"
+      VERSION: "{{ .Version }}"
 
 checksum:
   name_template: checksums.txt
@@ -92,6 +63,7 @@ snapshot:
 
 changelog:
   sort: asc
+  abbrev: -1
   filters:
     exclude:
       - "^docs:"
