@@ -24,7 +24,7 @@ type RefreshFunc[T any] func(ctx context.Context) (*T, error)
 // Config configures a Scraper.
 type Config[T any] struct {
 	// Name identifies this scraper in logs and span attributes
-	// (e.g. "ovs", "northd"). Required.
+	// (e.g. "garmin"). Required.
 	Name string
 	// Interval is the TTL between refreshes. Defaults to 15s.
 	Interval time.Duration
@@ -33,8 +33,8 @@ type Config[T any] struct {
 	// Logger receives one debug line per successful tick and one warn line
 	// per failure. Required.
 	Logger *slog.Logger
-	// Tracer wraps each refresh in an `ovsx.scrape.unixctl` span.
-	// Optional; when nil, no spans are emitted.
+	// Tracer wraps each refresh in a `scrape.refresh` span tagged with the
+	// scraper name. Optional; when nil, no spans are emitted.
 	Tracer trace.Tracer
 }
 
@@ -152,7 +152,7 @@ func (s *Scraper[T]) startSpan(ctx context.Context) (context.Context, trace.Span
 	if tracer == nil {
 		tracer = noopTracer
 	}
-	return tracer.Start(ctx, "ovsx.scrape.unixctl",
+	return tracer.Start(ctx, "scrape.refresh",
 		trace.WithAttributes(attribute.String("scraper.name", s.cfg.Name)))
 }
 

@@ -137,7 +137,7 @@ func rejectPullReaders(cfg *otelconf.OpenTelemetryConfiguration) error {
 		if r.Pull != nil {
 			return fmt.Errorf(
 				"otel: meter_provider.readers[%d]: pull reader (e.g. prometheus) is not allowed in YAML config — "+
-					"ovs-exporter always serves /metrics from its built-in Prometheus reader. "+
+					"garmin-exporter always serves /metrics from its built-in Prometheus reader. "+
 					"Remove the pull reader entry; use periodic readers for OTLP push instead",
 				i,
 			)

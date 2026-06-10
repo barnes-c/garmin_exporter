@@ -28,7 +28,7 @@ import (
 // scopeName is the instrumentation scope reported on Meter and Tracer.
 // Use the module path so the OTel `instrumentation.scope.name` attribute
 // reflects this codebase.
-const scopeName = "github.com/barnes-c/ovs-exporter"
+const scopeName = "github.com/barnes-c/garmin_exporter"
 
 // Config configures the OTel pipeline.
 //
