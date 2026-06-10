@@ -18,13 +18,13 @@ LDFLAGS := \
 all: fmt vet lint build test
 
 build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter .
+	$(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter .
 
 build-all:
-	GOOS=linux  GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-amd64 .
-	GOOS=linux  GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-arm64 .
-	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-darwin-arm64 .
+	GOOS=linux  GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-amd64 .
+	GOOS=linux  GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-arm64 .
+	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-darwin-arm64 .
 
 test:
 	$(GO) test -race ./...
