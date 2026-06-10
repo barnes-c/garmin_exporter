@@ -1,0 +1,9 @@
+---
+file_format: "1.0-rc.1"
+
+resource:
+  attributes:
+    - name: service.name
+      value: ovs-exporter
+    - name: deployment.environment
+      value: test
