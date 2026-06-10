@@ -1,9 +1,16 @@
+---
 name: CI
 on:
   pull_request:
-  push:
-    branches: [main, master, "release-*"]
-    tags: ["v*"]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "Dockerfile"
+      - "Dockerfile.release"
+      - "schemas/**"
+      - ".github/workflows/ci.yml"
 
 permissions:
   contents: read
@@ -13,7 +20,7 @@ jobs:
     name: Go tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -23,90 +30,13 @@ jobs:
       - run: make test
 
   build:
-    name: Build garmin_exporter
+    name: Build garmin-exporter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: 1.26.x
       - run: make build
-
-  release:
-    name: Publish binaries
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, build]
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: 1.26.x
-      - run: make build-all
-        env:
-          VERSION: ${{ github.ref_name }}
-          COMMIT: ${{ github.sha }}
-          BRANCH: ${{ github.ref_name }}
-          DATE: ${{ github.event.repository.updated_at }}
-      - run: |
-          sha256sum garmin_exporter-* > checksums.txt
-      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
-        with:
-          files: |
-            garmin_exporter-linux-amd64
-            garmin_exporter-linux-arm64
-            garmin_exporter-darwin-amd64
-            garmin_exporter-darwin-arm64
-            checksums.txt
-
-  docker:
-    name: Publish Docker image
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, build]
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
-        id: meta
-        with:
-          images: |
-            ghcr.io/barnes-c/garmin_exporter
-            docker.io/barnesbiz/garmin_exporter
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-            BRANCH=${{ github.ref_name }}
-            DATE=${{ github.event.repository.updated_at }}
