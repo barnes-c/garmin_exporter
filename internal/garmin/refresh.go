@@ -13,27 +13,16 @@ import (
 	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
 
-// RefreshConfig parameterizes NewRefresh.
 type RefreshConfig struct {
 	// ActivityLimit caps the number of recent activities fetched per tick.
 	// Mirrors the previous --garmin.activity-limit flag.
-	ActivityLimit int
-
-	// OnUnauthorized is invoked at most once per refresh tick when any API
-	// call returns garminconnect.ErrUnauthorized. The auth manager uses
-	// this to trigger a re-login. Optional; nil disables the callback.
+	ActivityLimit  int
 	OnUnauthorized func()
 }
 
 // NewRefresh returns a scrape.RefreshFunc that calls every Garmin Connect
 // endpoint backing a default-on collector and assembles the parsed results
 // into a Snapshot.
-//
-// Failures are best-effort: a per-method transport or parse error logs at
-// debug and leaves the corresponding snapshot field nil. The whole refresh
-// fails only when every attempted call failed — that's the signal worth
-// firing readyz on. The refresh short-circuits with ErrNotLoggedIn when the
-// auth manager has not yet installed a client.
 func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.RefreshFunc[Snapshot] {
 	if cfg.ActivityLimit <= 0 {
 		cfg.ActivityLimit = 30

@@ -2,11 +2,6 @@ package garmin
 
 import "github.com/barnes-c/go-garminconnect/garminconnect"
 
-// Source is the read API collectors consume to observe the latest Garmin
-// snapshot. The production implementation (internal/datasource.DataSource)
-// returns the scraper's atomic snapshot; tests inject their own fakes.
-// Returns nil before the first successful refresh — callers must handle
-// that case.
 type Source interface {
 	Snapshot() *Snapshot
 }
@@ -14,8 +9,7 @@ type Source interface {
 // Snapshot holds the parsed responses fetched from Garmin Connect on each
 // refresh. Fields are populated on a best-effort basis; an absent or failed
 // fetch leaves the corresponding pointer nil so collectors can degrade
-// gracefully. The struct is consumed via atomic.Pointer swap from the scrape
-// package, so callers must treat snapshot fields as immutable.
+// gracefully.
 type Snapshot struct {
 	Activities       *Activities
 	BloodPressure    *garminconnect.BloodPressureSummary
