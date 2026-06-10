@@ -55,7 +55,7 @@ func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logge
 		maxRequests:             maxRequests,
 		logger:                  logger,
 	}
-	h.exporterMetricsRegistry.MustRegister(versioncollector.NewCollector("garmin_exporter"))
+	h.exporterMetricsRegistry.MustRegister(versioncollector.NewCollector("garmin-exporter"))
 	h.exporterMetricsRegistry.MustRegister(authState, scrapeOutcome, scrp)
 	if includeExporterMetrics {
 		h.exporterMetricsRegistry.MustRegister(
@@ -171,7 +171,7 @@ func main() {
 
 	promslogConfig := &promslog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promslogConfig)
-	kingpin.Version(version.Print("garmin_exporter"))
+	kingpin.Version(version.Print("garmin-exporter"))
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
@@ -235,8 +235,8 @@ func main() {
 
 	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeOutcome, scrp, enabledNames)
 	http.Handle(*metricsPath, h)
-	http.HandleFunc("/healthz", probes.Healthz)
-	http.Handle("/readyz", probes.Readyz(authState, scrapeOutcome))
+	http.Handle("/healthz", probes.Health())
+	http.Handle("/readyz", probes.Ready(buildReadyChecks(authState, scrapeOutcome)))
 
 	genericEndpoint := *otlpEndpoint != ""
 
@@ -321,5 +321,23 @@ func main() {
 	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
 		logger.Error("ListenAndServe failed", "err", err)
 		os.Exit(1)
+	}
+}
+
+func buildReadyChecks(authState *auth.State, scrapeOutcome *scrape.Outcome) map[string]probes.Checker {
+	return map[string]probes.Checker{
+		"auth": probes.CheckerFunc(func(context.Context) error {
+			loginSuccess, nextRetry := authState.Snapshot()
+			if loginSuccess == 0 && nextRetry != 0 {
+				return fmt.Errorf("last login failed, next retry at %v", time.Unix(int64(nextRetry), 0))
+			}
+			return nil
+		}),
+		"scrape": probes.CheckerFunc(func(context.Context) error {
+			if !scrapeOutcome.Ready() {
+				return fmt.Errorf("last scrape failed")
+			}
+			return nil
+		}),
 	}
 }

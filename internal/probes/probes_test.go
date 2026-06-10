@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,8 +37,8 @@ func TestReady_NoChecks_ReturnsOK(t *testing.T) {
 
 func TestReady_AllChecksPass(t *testing.T) {
 	checks := map[string]Checker{
-		"ovsdb":   ok(),
-		"unixctl": ok(),
+		"auth":   ok(),
+		"scrape": ok(),
 	}
 	rec := httptest.NewRecorder()
 	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -45,9 +46,42 @@ func TestReady_AllChecksPass(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	want := "ovsdb: ok\nunixctl: ok\n"
+	want := "auth: ok\nscrape: ok\n"
 	if got := rec.Body.String(); got != want {
 		t.Errorf("body = %q, want %q", got, want)
+	}
+}
+
+func TestReady_OneCheckFails_Returns503(t *testing.T) {
+	checks := map[string]Checker{
+		"auth":   ok(),
+		"scrape": fail("last scrape failed"),
+	}
+	rec := httptest.NewRecorder()
+	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "scrape: last scrape failed") {
+		t.Errorf("body missing failure detail: %q", body)
+	}
+	if !strings.Contains(body, "auth: ok") {
+		t.Errorf("body should still list passing checks: %q", body)
+	}
+}
+
+func TestReady_AllChecksFail(t *testing.T) {
+	checks := map[string]Checker{
+		"auth":   fail("last login failed"),
+		"scrape": fail("last scrape failed"),
+	}
+	rec := httptest.NewRecorder()
+	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 }
 
