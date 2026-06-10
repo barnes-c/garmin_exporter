@@ -1,29 +1,47 @@
 package probes
 
 import (
+	"context"
+	"fmt"
 	"net/http"
-
-	"github.com/barnes-c/garmin_exporter/internal/auth"
-	"github.com/barnes-c/garmin_exporter/internal/scrape"
+	"sort"
 )
 
-// Readyz returns 200 OK once authentication has succeeded and the most recent
-// scrape produced data, otherwise 503 Service Unavailable.
-func Readyz(authState *auth.State, scrapeOutcome *scrape.Outcome) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+type Checker interface {
+	Check(ctx context.Context) error
+}
+
+type CheckerFunc func(ctx context.Context) error
+
+func (f CheckerFunc) Check(ctx context.Context) error { return f(ctx) }
+
+func Ready(checks map[string]Checker) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		names := make([]string, 0, len(checks))
+		for name := range checks {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+
+		results := make(map[string]string, len(checks))
+		allOK := true
+		for _, name := range names {
+			if err := checks[name].Check(r.Context()); err != nil {
+				results[name] = err.Error()
+				allOK = false
+				continue
+			}
+			results[name] = "ok"
+		}
+
+		status := http.StatusOK
+		if !allOK {
+			status = http.StatusServiceUnavailable
+		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		loginSuccess, _ := authState.Snapshot()
-		if loginSuccess != 1 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("not authenticated\n"))
-			return
+		w.WriteHeader(status)
+		for _, name := range names {
+			_, _ = fmt.Fprintf(w, "%s: %s\n", name, results[name])
 		}
-		if !scrapeOutcome.Ready() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("last scrape failed\n"))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok\n"))
-	}
+	})
 }
