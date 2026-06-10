@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	binary = filepath.Join(os.Getenv("GOPATH"), "bin/garmin_exporter")
+	binary = filepath.Join(os.Getenv("GOPATH"), "bin/garmin-exporter")
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 func TestFileDescriptorLeak(t *testing.T) {
 	if _, err := os.Stat(binary); err != nil {
-		t.Skipf("garmin_exporter binary not available, try to run `make build` first: %s", err)
+		t.Skipf("garmin-exporter binary not available, try to run `make build` first: %s", err)
 	}
 	fs, err := procfs.NewDefaultFS()
 	if err != nil {
