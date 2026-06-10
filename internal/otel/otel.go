@@ -32,13 +32,6 @@ const scopeName = "github.com/barnes-c/garmin_exporter"
 
 // Config configures the OTel pipeline.
 //
-// The exporter selectors follow the OpenTelemetry environment-variable
-// convention (OTEL_METRICS_EXPORTER, OTEL_TRACES_EXPORTER, OTEL_LOGS_EXPORTER)
-// but default to "none" instead of the OTel-spec "otlp". Rationale: this is
-// a Prometheus exporter, not a general-purpose OTel app — most deployments
-// scrape /metrics and have no collector reachable; defaulting to "otlp"
-// would spam connection errors at localhost:4317 on every install.
-//
 // The Prometheus reader is ALWAYS attached to the
 // MeterProvider regardless of MetricsExporter — /metrics is part of the
 // exporter's contract, not a configurable signal. MetricsExporter therefore

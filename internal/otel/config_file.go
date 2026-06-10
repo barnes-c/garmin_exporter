@@ -14,18 +14,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// envVarConfigFile mirrors the env var name otelconf reads itself. We
-// clear it before NewSDK so the parsed config we hand over explicitly is
-// the only source — otherwise NewSDK re-parses the file and silently
-// overrides our injected MeterProviderOptions (where the Prom reader
-// lives). We intentionally do NOT touch OTEL_EXPERIMENTAL_CONFIG_FILE:
-// if an operator still has the deprecated env set, upstream's error
-// surfaces and tells them to migrate.
 const envVarConfigFile = "OTEL_CONFIG_FILE"
 
-// setupFromYAML builds the SDK from an OTel declarative configuration
-// file. The Prometheus reader is constructed and injected here — the
-// YAML must not declare one (see rejectPullReaders).
 func setupFromYAML(ctx context.Context, logger *slog.Logger, cfg Config) (*Result, error) {
 	if cfg.ServiceName == "" {
 		return nil, fmt.Errorf("ServiceName is required")
