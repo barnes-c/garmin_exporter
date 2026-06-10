@@ -3,6 +3,7 @@ package garmin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -17,6 +18,11 @@ type RefreshConfig struct {
 	// ActivityLimit caps the number of recent activities fetched per tick.
 	// Mirrors the previous --garmin.activity-limit flag.
 	ActivityLimit int
+
+	// OnUnauthorized is invoked at most once per refresh tick when any API
+	// call returns garminconnect.ErrUnauthorized. The auth manager uses
+	// this to trigger a re-login. Optional; nil disables the callback.
+	OnUnauthorized func()
 }
 
 // NewRefresh returns a scrape.RefreshFunc that calls every Garmin Connect
@@ -41,11 +47,15 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 		snap := &Snapshot{}
 		now := time.Now()
 		var attempts, failures int
+		var unauthorized bool
 
 		call := func(name string, fn func() error) {
 			attempts++
 			if err := fn(); err != nil {
 				failures++
+				if errors.Is(err, garminconnect.ErrUnauthorized) {
+					unauthorized = true
+				}
 				log.Debug("garmin call failed", "endpoint", name, "err", err)
 			}
 		}
@@ -246,6 +256,9 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			return nil
 		})
 
+		if unauthorized && cfg.OnUnauthorized != nil {
+			cfg.OnUnauthorized()
+		}
 		if attempts > 0 && failures == attempts {
 			return nil, fmt.Errorf("garmin: all %d API calls failed", failures)
 		}

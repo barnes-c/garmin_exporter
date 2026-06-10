@@ -3,63 +3,100 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("heartrate", defaultEnabled, newHeartRateCollector)
+	registerCollector("heartrate", DefaultEnabled, newHeartRateCollector)
 }
 
 type heartRateCollector struct {
-	resting     *prometheus.Desc
-	min         *prometheus.Desc
-	max         *prometheus.Desc
-	sevenDayAvg *prometheus.Desc
-	logger      *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	resting     metric.Int64ObservableGauge
+	min         metric.Int64ObservableGauge
+	max         metric.Int64ObservableGauge
+	sevenDayAvg metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newHeartRateCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "heartrate"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &heartRateCollector{
-		resting:     d("resting_bpm", "Resting heart rate in bpm."),
-		min:         d("min_bpm", "Minimum heart rate in bpm."),
-		max:         d("max_bpm", "Maximum heart rate in bpm."),
-		sevenDayAvg: d("seven_day_avg_resting_bpm", "7-day average resting heart rate in bpm."),
-		logger:      logger,
-	}, nil
+func newHeartRateCollector(log *slog.Logger) (Collector, error) {
+	return &heartRateCollector{log: log}, nil
 }
 
-func (c *heartRateCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *heartRateCollector) Name() string { return "heartrate" }
 
-	hr, err := client.HeartRates(ctx, time.Now())
+func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.resting, err = meter.Int64ObservableGauge(
+		"garmin.heartrate.resting_bpm",
+		metric.WithDescription("Resting heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.min, err = meter.Int64ObservableGauge(
+		"garmin.heartrate.min_bpm",
+		metric.WithDescription("Minimum heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.max, err = meter.Int64ObservableGauge(
+		"garmin.heartrate.max_bpm",
+		metric.WithDescription("Maximum heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.sevenDayAvg, err = meter.Int64ObservableGauge(
+		"garmin.heartrate.seven_day_avg_resting_bpm",
+		metric.WithDescription("7-day average resting heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
 	if err != nil {
 		return err
 	}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.resting, c.min, c.max, c.sevenDayAvg)
+	return err
+}
 
+func (c *heartRateCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.HeartRate == nil {
+		return nil
+	}
+	hr := snap.HeartRate
 	if hr.RestingHeartRate > 0 {
-		g(c.resting, float64(hr.RestingHeartRate))
+		o.ObserveInt64(c.resting, int64(hr.RestingHeartRate))
 	}
 	if hr.MinHeartRate > 0 {
-		g(c.min, float64(hr.MinHeartRate))
+		o.ObserveInt64(c.min, int64(hr.MinHeartRate))
 	}
 	if hr.MaxHeartRate > 0 {
-		g(c.max, float64(hr.MaxHeartRate))
+		o.ObserveInt64(c.max, int64(hr.MaxHeartRate))
 	}
 	if hr.LastSevenDaysAvgRestingHeartRate > 0 {
-		g(c.sevenDayAvg, float64(hr.LastSevenDaysAvgRestingHeartRate))
+		o.ObserveInt64(c.sevenDayAvg, int64(hr.LastSevenDaysAvgRestingHeartRate))
 	}
 	return nil
+}
+
+func (c *heartRateCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

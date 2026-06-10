@@ -4,50 +4,75 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("goals", defaultEnabled, newGoalsCollector)
+	registerCollector("goals", DefaultEnabled, newGoalsCollector)
 }
 
 type goalsCollector struct {
-	activeGoals  *prometheus.Desc
-	earnedBadges *prometheus.Desc
-	logger       *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	activeGoals  metric.Int64ObservableGauge
+	earnedBadges metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newGoalsCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "goals"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &goalsCollector{
-		activeGoals:  d("active_total", "Number of active fitness goals."),
-		earnedBadges: d("earned_badges_total", "Total number of earned achievement badges."),
-		logger:       logger,
-	}, nil
+func newGoalsCollector(log *slog.Logger) (Collector, error) {
+	return &goalsCollector{log: log}, nil
 }
 
-func (c *goalsCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *goalsCollector) Name() string { return "goals" }
 
-	goals, err := client.Goals(ctx, "active", 0, 100)
+func (c *goalsCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.activeGoals, err = meter.Int64ObservableGauge(
+		"garmin.goals.active_total",
+		metric.WithDescription("Number of active fitness goals."),
+		metric.WithUnit("{goal}"),
+	)
 	if err != nil {
-		c.logger.Debug("goals unavailable", "err", err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(c.activeGoals, prometheus.GaugeValue, float64(len(goals)))
+		return err
 	}
-
-	badges, err := client.EarnedBadges(ctx)
+	c.earnedBadges, err = meter.Int64ObservableGauge(
+		"garmin.goals.earned_badges_total",
+		metric.WithDescription("Total number of earned achievement badges."),
+		metric.WithUnit("{badge}"),
+	)
 	if err != nil {
-		c.logger.Debug("badges unavailable", "err", err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(c.earnedBadges, prometheus.GaugeValue, float64(len(badges)))
+		return err
 	}
 
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.activeGoals, c.earnedBadges)
+	return err
+}
+
+func (c *goalsCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Goals == nil {
+		return nil
+	}
+	g := snap.Goals
+	if g.Active != nil {
+		o.ObserveInt64(c.activeGoals, int64(len(g.Active)))
+	}
+	if g.Badges != nil {
+		o.ObserveInt64(c.earnedBadges, int64(len(g.Badges)))
+	}
 	return nil
+}
+
+func (c *goalsCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

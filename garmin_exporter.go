@@ -3,187 +3,218 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"os/user"
 	"runtime"
-	"slices"
-	"sort"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
-
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
-	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/barnes-c/garmin_exporter/collector"
 	"github.com/barnes-c/garmin_exporter/internal/auth"
-	"github.com/barnes-c/garmin_exporter/internal/otlp"
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
+	"github.com/barnes-c/garmin_exporter/internal/otel"
 	"github.com/barnes-c/garmin_exporter/internal/probes"
 	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
 
-// handler serves Prometheus metrics from the scraper's cached snapshot
-// alongside the exporter's own meta-metrics (process_*, go_*, garmin_auth_*,
-// garmin_last_scrape_timestamp_seconds, etc.).
-type handler struct {
-	exporterMetricsRegistry *prometheus.Registry
-	scraper                 *scrape.Scraper
-	knownCollectors         []string
-	includeExporterMetrics  bool
-	maxRequests             int
-	logger                  *slog.Logger
-}
+var (
+	metricsPath = kingpin.Flag(
+		"web.telemetry-path",
+		"Path under which to expose metrics.",
+	).Default("/metrics").String()
 
-func newHandler(includeExporterMetrics bool, maxRequests int, logger *slog.Logger, authState *auth.State, scrapeOutcome *scrape.Outcome, scrp *scrape.Scraper, knownCollectors []string) *handler {
-	h := &handler{
-		exporterMetricsRegistry: prometheus.NewRegistry(),
-		scraper:                 scrp,
-		knownCollectors:         knownCollectors,
-		includeExporterMetrics:  includeExporterMetrics,
-		maxRequests:             maxRequests,
-		logger:                  logger,
+	maxProcs = kingpin.Flag(
+		"runtime.gomaxprocs",
+		"The target number of CPUs Go will run on (GOMAXPROCS).",
+	).Envar("GOMAXPROCS").Default("1").Int()
+
+	disableDefaultCollectors = kingpin.Flag(
+		"collector.disable-defaults",
+		"Set all collectors to disabled by default.",
+	).Default("false").Bool()
+
+	garminUsername = kingpin.Flag(
+		"garmin.username", "Garmin Connect username.",
+	).Envar("GARMIN_USERNAME").Required().String()
+	garminPassword = kingpin.Flag(
+		"garmin.password", "Garmin Connect password.",
+	).Envar("GARMIN_PASSWORD").Required().String()
+	garminTokenFile = kingpin.Flag(
+		"garmin.token-file", "Path to cached OAuth2 token file.",
+	).Default("garmin_token.json").String()
+	garminLimit = kingpin.Flag(
+		"garmin.activity-limit", "Number of recent activities to fetch.",
+	).Default("30").Int()
+
+	cacheTTL = kingpin.Flag(
+		"cache.ttl",
+		"How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.",
+	).Default("1h").Duration()
+
+	otelMetricsExporter = kingpin.Flag(
+		"otel.metrics-exporter",
+		"Comma-separated push exporters; /metrics is always served. Values: otlp, console, none.",
+	).Envar("OTEL_METRICS_EXPORTER").Default("").String()
+	otelTracesExporter = kingpin.Flag(
+		"otel.traces-exporter",
+		"Traces exporter. Values: otlp, console, none.",
+	).Envar("OTEL_TRACES_EXPORTER").Default("").String()
+	otelLogsExporter = kingpin.Flag(
+		"otel.logs-exporter",
+		"Logs exporter. Values: otlp, console, none.",
+	).Envar("OTEL_LOGS_EXPORTER").Default("").String()
+	otelOTLPEndpoint = kingpin.Flag(
+		"otel.otlp.endpoint",
+		"OTLP collector endpoint (e.g. localhost:4317). Sets OTEL_EXPORTER_OTLP_ENDPOINT when provided.",
+	).Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
+	otelProtocol = kingpin.Flag(
+		"otel.otlp.protocol",
+		"OTLP transport protocol. Values: grpc, http/protobuf.",
+	).Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
+	otelInterval = kingpin.Flag(
+		"otel.otlp.interval",
+		"OTLP push interval.",
+	).Default("15s").Duration()
+	otelTraceSampleRate = kingpin.Flag(
+		"otel.trace-sample-rate",
+		"Trace sample rate (0 < rate <= 1).",
+	).Default("1.0").Float64()
+	otelServiceName = kingpin.Flag(
+		"otel.service-name",
+		"OTel service.name resource attribute.",
+	).Envar("OTEL_SERVICE_NAME").Default("garmin-exporter").String()
+	webPrometheus = kingpin.Flag(
+		"web.prometheus",
+		"Serve the Prometheus scrape endpoint at --web.telemetry-path. Disable for OTLP-push-only deployments.",
+	).Default("true").Bool()
+	otelConfigFile = kingpin.Flag(
+		"otel.config-file",
+		"Path to an OTel declarative YAML config (otelconf). When set, all other --otel.* flags are ignored (OTel spec).",
+	).Envar("OTEL_CONFIG_FILE").Default("").String()
+
+	toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
+)
+
+// buildHandler wires the HTTP routes served by the exporter: the OTel
+// Prometheus handler at metricsPath, healthz/readyz probes, and the
+// exporter-toolkit landing page at "/" (unless metricsPath itself is "/").
+func buildHandler(res *otel.Result, metricsPath string, readyChecks map[string]probes.Checker) (http.Handler, error) {
+	mux := http.NewServeMux()
+	if res.PromHandler != nil {
+		mux.Handle(metricsPath, res.PromHandler)
 	}
-	h.exporterMetricsRegistry.MustRegister(versioncollector.NewCollector("garmin-exporter"))
-	h.exporterMetricsRegistry.MustRegister(authState, scrapeOutcome, scrp)
-	if includeExporterMetrics {
-		h.exporterMetricsRegistry.MustRegister(
-			promcollectors.NewProcessCollector(promcollectors.ProcessCollectorOpts{}),
-			promcollectors.NewGoCollector(),
+	mux.Handle("/healthz", probes.Health())
+	mux.Handle("/readyz", probes.Ready(readyChecks))
+
+	if metricsPath != "/" {
+		links := []web.LandingLinks{}
+		if res.PromHandler != nil {
+			links = append(links, web.LandingLinks{Address: metricsPath, Text: "Metrics"})
+		}
+		links = append(links,
+			web.LandingLinks{Address: "/healthz", Text: "Health"},
+			web.LandingLinks{Address: "/readyz", Text: "Readiness"},
 		)
-	}
-	return h
-}
-
-// ServeHTTP implements http.Handler. It always serves from the scraper's
-// cached snapshot; filtered scrapes intersect that snapshot in memory and
-// never trigger a Garmin call.
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	collects := r.URL.Query()["collect[]"]
-	excludes := r.URL.Query()["exclude[]"]
-
-	if len(collects) > 0 && len(excludes) > 0 {
-		h.logger.Debug("rejecting combined collect and exclude queries")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("Combined collect and exclude queries are not allowed."))
-		return
-	}
-
-	for _, name := range collects {
-		if !slices.Contains(h.knownCollectors, name) {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, "unknown or disabled collector: %s", name)
-			return
+		landing, err := web.NewLandingPage(web.LandingConfig{
+			Name:        "Garmin Exporter",
+			Description: "OTel-native Prometheus exporter for Garmin Connect",
+			Version:     version.Info(),
+			Links:       links,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("creating landing page: %w", err)
 		}
+		mux.Handle("/", landing)
 	}
-	for _, name := range excludes {
-		if !slices.Contains(h.knownCollectors, name) {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, "unknown or disabled collector: %s", name)
-			return
-		}
-	}
-
-	dataGatherer := h.scraper.Gatherer()
-	switch {
-	case len(collects) > 0:
-		dataGatherer = h.scraper.FilteredGatherer(collects)
-	case len(excludes) > 0:
-		wanted := make([]string, 0, len(h.knownCollectors))
-		for _, n := range h.knownCollectors {
-			if !slices.Contains(excludes, n) {
-				wanted = append(wanted, n)
-			}
-		}
-		dataGatherer = h.scraper.FilteredGatherer(wanted)
-	}
-
-	var inner http.Handler
-	opts := promhttp.HandlerOpts{
-		ErrorLog:            slog.NewLogLogger(h.logger.Handler(), slog.LevelError),
-		ErrorHandling:       promhttp.ContinueOnError,
-		MaxRequestsInFlight: h.maxRequests,
-	}
-	if h.includeExporterMetrics {
-		opts.Registry = h.exporterMetricsRegistry
-		inner = promhttp.HandlerFor(prometheus.Gatherers{h.exporterMetricsRegistry, dataGatherer}, opts)
-		inner = promhttp.InstrumentMetricHandler(h.exporterMetricsRegistry, inner)
-	} else {
-		inner = promhttp.HandlerFor(prometheus.Gatherers{h.exporterMetricsRegistry, dataGatherer}, opts)
-	}
-	inner.ServeHTTP(w, r)
-}
-
-// Gatherers returns the union of the exporter meta-metrics registry and the
-// scraper's cached data gatherer. Used to feed the OTLP push pipeline.
-func (h *handler) Gatherers() prometheus.Gatherers {
-	return prometheus.Gatherers{h.exporterMetricsRegistry, h.scraper.Gatherer()}
+	return mux, nil
 }
 
 func main() {
-	var (
-		metricsPath = kingpin.Flag(
-			"web.telemetry-path",
-			"Path under which to expose metrics.",
-		).Default("/metrics").String()
-		disableExporterMetrics = kingpin.Flag(
-			"web.disable-exporter-metrics",
-			"Exclude metrics about the exporter itself (promhttp_*, process_*, go_*).",
-		).Bool()
-		maxRequests = kingpin.Flag(
-			"web.max-requests",
-			"Maximum number of parallel scrape requests. Use 0 to disable.",
-		).Default("40").Int()
-		disableDefaultCollectors = kingpin.Flag(
-			"collector.disable-defaults",
-			"Set all collectors to disabled by default.",
-		).Default("false").Bool()
-		maxProcs = kingpin.Flag(
-			"runtime.gomaxprocs", "The target number of CPUs Go will run on (GOMAXPROCS)",
-		).Envar("GOMAXPROCS").Default("1").Int()
-		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
-
-		garminUsername  = kingpin.Flag("garmin.username", "Garmin Connect username.").Envar("GARMIN_USERNAME").Required().String()
-		garminPassword  = kingpin.Flag("garmin.password", "Garmin Connect password.").Envar("GARMIN_PASSWORD").Required().String()
-		garminTokenFile = kingpin.Flag("garmin.token-file", "Path to cached OAuth2 token file.").Default("garmin_token.json").String()
-		garminLimit     = kingpin.Flag("garmin.activity-limit", "Number of recent activities to fetch.").Default("30").Int()
-
-		cacheTTL = kingpin.Flag("cache.ttl", "How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.").Default("1h").Duration()
-
-		otlpEndpoint        = kingpin.Flag("otlp.endpoint", "OTLP collector endpoint (e.g. localhost:4317). Enables OTLP export when set.").Envar("OTEL_EXPORTER_OTLP_ENDPOINT").Default("").String()
-		otlpProtocol        = kingpin.Flag("otlp.protocol", "OTLP transport protocol.").Envar("OTEL_EXPORTER_OTLP_PROTOCOL").Default("grpc").String()
-		otlpInterval        = kingpin.Flag("otlp.interval", "OTLP push interval. Independent of --cache.ttl; pushes always send the most recent cached values.").Default("15s").Duration()
-		otlpMetricsExporter = kingpin.Flag("otlp.metrics-exporter", "OTLP metrics exporter. Set to \"none\" to disable metrics export.").Envar("OTEL_METRICS_EXPORTER").Default("otlp").String()
-		otlpTracesExporter  = kingpin.Flag("otlp.traces-exporter", "OTLP traces exporter. Set to \"none\" to disable traces export.").Envar("OTEL_TRACES_EXPORTER").Default("otlp").String()
-		otlpLogsExporter    = kingpin.Flag("otlp.logs-exporter", "OTLP logs exporter. Set to \"none\" to disable logs export.").Envar("OTEL_LOGS_EXPORTER").Default("otlp").String()
-	)
-
 	promslogConfig := &promslog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promslogConfig)
 	kingpin.Version(version.Print("garmin-exporter"))
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
+
 	logger := promslog.New(promslogConfig)
+	runtime.GOMAXPROCS(*maxProcs)
 
 	if *disableDefaultCollectors {
 		collector.DisableDefaultCollectors()
 	}
 
-	collector.SetActivityLimit(*garminLimit)
-	scrapeOutcome := scrape.NewOutcome()
+	// Propagate flag values into the env vars autoexport reads directly.
+	// Without this, autoexport falls back to its own defaults when the
+	// user supplied a value only via --otel.* flags.
+	envFromFlag := map[string]string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT": *otelOTLPEndpoint,
+		"OTEL_EXPORTER_OTLP_PROTOCOL": *otelProtocol,
+		"OTEL_METRIC_EXPORT_INTERVAL": fmt.Sprintf("%d", otelInterval.Milliseconds()),
+	}
+	for k, v := range envFromFlag {
+		if v == "" {
+			continue
+		}
+		if err := os.Setenv(k, v); err != nil {
+			logger.Error("Failed to set env var", "key", k, "err", err)
+			os.Exit(1)
+		}
+	}
+
+	if *otelConfigFile != "" {
+		logger.Warn(
+			"--otel.config-file is set; --otel.* flags are ignored per the OTel spec (declarative config is exclusive)",
+			"config_file", *otelConfigFile,
+		)
+	}
+
+	rootCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	otelResult, err := otel.Setup(rootCtx, logger, otel.Config{
+		ServiceName:       *otelServiceName,
+		ServiceVersion:    version.Version,
+		Protocol:          *otelProtocol,
+		OTLPInterval:      *otelInterval,
+		MetricsExporter:   *otelMetricsExporter,
+		TracesExporter:    *otelTracesExporter,
+		LogsExporter:      *otelLogsExporter,
+		TraceSampleRate:   *otelTraceSampleRate,
+		PrometheusEnabled: *webPrometheus,
+		ConfigFile:        *otelConfigFile,
+	})
+	if err != nil {
+		logger.Error("Failed to set up OTel pipeline", "err", err)
+		os.Exit(1)
+	}
+	if otelResult.Logger != nil {
+		logger = otelResult.Logger
+	}
+
+	// Auth manager: drives the Garmin login loop and exposes the resulting
+	// client via a *garmin.Client wrapper that the scraper reads on every
+	// refresh.
 	authState := auth.NewState()
+	if err := authState.Register(otelResult.Meter); err != nil {
+		logger.Error("Failed to register auth metrics", "err", err)
+		os.Exit(1)
+	}
+	garminClient := garmin.NewClient()
 	mfaPrompt := func() (string, error) {
 		fmt.Fprint(os.Stderr, "MFA code (check your email): ")
 		scanner := bufio.NewScanner(os.Stdin)
@@ -195,88 +226,52 @@ func main() {
 		}
 		return strings.TrimSpace(scanner.Text()), nil
 	}
-	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile, logger, authState, mfaPrompt)
+	authManager := auth.NewManager(*garminUsername, *garminPassword, *garminTokenFile,
+		logger, garminClient, authState, mfaPrompt)
+	authManager.SetLogger(logger)
 
-	runtime.GOMAXPROCS(*maxProcs)
-
-	// Enumerate the enabled Garmin sub-collectors once for filter validation
-	// and landing-page logging.
-	bootstrapGC, err := collector.NewGarminCollector(logger)
+	// Scraper: one Scraper[garmin.Snapshot] driven by --cache.ttl. The
+	// refresh func fans out across every Garmin endpoint best-effort and
+	// triggers a re-auth when an Unauthorized error surfaces.
+	garminScraper, err := scrape.New(scrape.Config[garmin.Snapshot]{
+		Name:     "garmin",
+		Interval: *cacheTTL,
+		Logger:   logger.With("component", "scrape-garmin"),
+		Tracer:   otelResult.Tracer,
+		Refresh: garmin.NewRefresh(garminClient, logger.With("component", "garmin"), garmin.RefreshConfig{
+			ActivityLimit:  *garminLimit,
+			OnUnauthorized: authManager.TriggerReauth,
+		}),
+	})
 	if err != nil {
-		logger.Error("Couldn't enumerate collectors", "err", err)
+		logger.Error("Failed to create Garmin scraper", "err", err)
 		os.Exit(1)
 	}
-	enabledNames := make([]string, 0, len(bootstrapGC.Collectors))
-	for n := range bootstrapGC.Collectors {
-		enabledNames = append(enabledNames, n)
-	}
-	sort.Strings(enabledNames)
-	logger.Info("Enabled collectors")
-	for _, n := range enabledNames {
-		logger.Info(n)
-	}
 
-	scrp := scrape.New(scrape.Config{
-		TTL:    *cacheTTL,
-		Logger: logger,
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			gc, err := collector.NewGarminCollector(logger)
-			if err != nil {
-				return nil, err
-			}
-			return gc.PromCollectors(collector.WithUnauthorizedHandler(authManager.TriggerReauth)), nil
-		},
-		AuthReady: authManager.Ready,
-		OnScrape:  scrapeOutcome.Record,
-	})
-	scraperCtx, cancelScraper := context.WithCancel(context.Background())
-	defer cancelScraper()
-	go scrp.Run(scraperCtx)
-
-	h := newHandler(!*disableExporterMetrics, *maxRequests, logger, authState, scrapeOutcome, scrp, enabledNames)
-	http.Handle(*metricsPath, h)
-	http.Handle("/healthz", probes.Health())
-	http.Handle("/readyz", probes.Ready(buildReadyChecks(authState, scrapeOutcome)))
-
-	genericEndpoint := *otlpEndpoint != ""
-
-	metricsExporter := *otlpMetricsExporter
-	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT") == "" {
-		metricsExporter = "none"
+	// Collectors: instantiate every enabled collector, register their
+	// observable instruments on the OTel Meter, and feed them the scraper
+	// (which directly satisfies garmin.Source).
+	group, err := collector.NewGroup(logger)
+	if err != nil {
+		logger.Error("Failed to instantiate collectors", "err", err)
+		os.Exit(1)
 	}
-	tracesExporter := *otlpTracesExporter
-	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" {
-		tracesExporter = "none"
+	if err := group.RegisterAll(otelResult.Meter, garminScraper); err != nil {
+		logger.Error("Failed to register collectors", "err", err)
+		os.Exit(1)
 	}
-	logsExporter := *otlpLogsExporter
-	if !genericEndpoint && os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") == "" {
-		logsExporter = "none"
-	}
+	logger.Info("Collectors registered", "names", group.Names())
 
-	if metricsExporter != "none" || tracesExporter != "none" || logsExporter != "none" {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		shutdown, otlpLogger, err := otlp.Setup(ctx, h.Gatherers(), logger, otlp.Config{
-			Protocol:        *otlpProtocol,
-			Interval:        *otlpInterval,
-			MetricsExporter: metricsExporter,
-			TracesExporter:  tracesExporter,
-			LogsExporter:    logsExporter,
-		})
-		if err != nil {
-			logger.Error("Failed to setup OTLP", "err", err)
-			os.Exit(1)
-		}
-		if otlpLogger != nil {
-			logger = otlpLogger
-		}
-		defer func() {
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer shutdownCancel()
-			if err := shutdown(shutdownCtx); err != nil {
-				logger.Error("OTLP shutdown error", "err", err)
-			}
-		}()
+	scrapeCtx, scrapeCancel := context.WithCancel(rootCtx)
+	go garminScraper.Run(scrapeCtx)
+	go authManager.Run()
+
+	readyChecks := buildReadyChecks(garminClient, garminScraper, *cacheTTL)
+
+	mux, err := buildHandler(otelResult, *metricsPath, readyChecks)
+	if err != nil {
+		logger.Error("Failed to build HTTP handler", "err", err)
+		os.Exit(1)
 	}
 
 	logger.Info("Starting garmin_exporter", "version", version.Info())
@@ -286,58 +281,57 @@ func main() {
 	}
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	authManager.SetLogger(logger)
-	go authManager.Run()
-
-	if *metricsPath != "/" {
-		landingConfig := web.LandingConfig{
-			Name:        "Garmin Exporter",
-			Description: "Prometheus Garmin Exporter",
-			Version:     version.Info(),
-			Links: []web.LandingLinks{
-				{
-					Address: *metricsPath,
-					Text:    "Metrics",
-				},
-				{
-					Address: "/healthz",
-					Text:    "Health",
-				},
-				{
-					Address: "/readyz",
-					Text:    "Readiness",
-				},
-			},
+	server := &http.Server{Handler: otelhttp.NewHandler(mux, "garmin-exporter")}
+	serveErrCh := make(chan error, 1)
+	go func() {
+		err := web.ListenAndServe(server, toolkitFlags, logger)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErrCh <- err
+			return
 		}
-		landingPage, err := web.NewLandingPage(landingConfig)
+		close(serveErrCh)
+	}()
+
+	exitCode := 0
+	select {
+	case err := <-serveErrCh:
 		if err != nil {
-			logger.Error("Couldn't create landing page", "err", err)
-			os.Exit(1)
+			logger.Error("ListenAndServe failed", "err", err)
+			exitCode = 1
 		}
-		http.Handle("/", landingPage)
+	case <-rootCtx.Done():
+		logger.Info("Shutdown signal received")
 	}
 
-	server := &http.Server{}
-	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
-		logger.Error("ListenAndServe failed", "err", err)
-		os.Exit(1)
+	scrapeCancel()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "HTTP shutdown error: %v\n", err)
 	}
+	if err := group.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Collector close error: %v\n", err)
+	}
+	if err := authState.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Auth state close error: %v\n", err)
+	}
+	if err := otelResult.Shutdown(shutdownCtx); err != nil {
+		fmt.Fprintf(os.Stderr, "OTel shutdown error: %v\n", err)
+	}
+	os.Exit(exitCode)
 }
 
-func buildReadyChecks(authState *auth.State, scrapeOutcome *scrape.Outcome) map[string]probes.Checker {
+// buildReadyChecks wires the readyz dependency checks. Each subsystem owns
+// its own health verdict; this function just decides which checks to expose
+// under what name and what staleness threshold counts as not-ready.
+func buildReadyChecks(client *garmin.Client, scraper *scrape.Scraper[garmin.Snapshot], ttl time.Duration) map[string]probes.Checker {
 	return map[string]probes.Checker{
 		"auth": probes.CheckerFunc(func(context.Context) error {
-			loginSuccess, nextRetry := authState.Snapshot()
-			if loginSuccess == 0 && nextRetry != 0 {
-				return fmt.Errorf("last login failed, next retry at %v", time.Unix(int64(nextRetry), 0))
-			}
-			return nil
+			return client.Healthy()
 		}),
 		"scrape": probes.CheckerFunc(func(context.Context) error {
-			if !scrapeOutcome.Ready() {
-				return fmt.Errorf("last scrape failed")
-			}
-			return nil
+			return scraper.Stale(3 * ttl)
 		}),
 	}
 }
