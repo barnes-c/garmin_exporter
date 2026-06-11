@@ -69,8 +69,8 @@ func TestSetupFromYAML_RejectsPullReader(t *testing.T) {
 	if !strings.Contains(err.Error(), "pull reader") {
 		t.Fatalf("error %q does not mention pull reader", err)
 	}
-	if !strings.Contains(err.Error(), "/metrics") {
-		t.Fatalf("error %q does not mention /metrics carve-out", err)
+	if !strings.Contains(err.Error(), "otelconf") {
+		t.Fatalf("error %q does not attribute the limit to otelconf", err)
 	}
 }
 
