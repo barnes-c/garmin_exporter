@@ -116,9 +116,14 @@ func setupFromYAML(ctx context.Context, logger *slog.Logger, cfg Config) (*Resul
 }
 
 // rejectPullReaders refuses YAML configs that declare any pull metric
-// reader. The exporter always owns the Prometheus reader and serves
-// /metrics from its own HTTP mux; a second SDK-managed listener would
-// either bind-conflict or silently leave the user without /metrics.
+// reader. The current go.opentelemetry.io/contrib/otelconf release does
+// not implement pull readers — its pullReader factory returns an error
+// unconditionally, so any such YAML would fail inside NewSDK with an
+// opaque "no valid metric exporter" message. Surfacing a clearer error
+// up-front saves the operator a round of debugging. When garmin-exporter's
+// own Prom reader is enabled (--web.prometheus=true, the default), the
+// /metrics path covers the use case; OTLP-push-only deployments use
+// periodic readers.
 func rejectPullReaders(cfg *otelconf.OpenTelemetryConfiguration) error {
 	if cfg == nil || cfg.MeterProvider == nil {
 		return nil
@@ -126,9 +131,8 @@ func rejectPullReaders(cfg *otelconf.OpenTelemetryConfiguration) error {
 	for i, r := range cfg.MeterProvider.Readers {
 		if r.Pull != nil {
 			return fmt.Errorf(
-				"otel: meter_provider.readers[%d]: pull reader (e.g. prometheus) is not allowed in YAML config — "+
-					"garmin-exporter always serves /metrics from its built-in Prometheus reader. "+
-					"Remove the pull reader entry; use periodic readers for OTLP push instead",
+				"otel: meter_provider.readers[%d]: pull readers are not yet supported by go.opentelemetry.io/contrib/otelconf — "+
+					"remove the entry. For /metrics use --web.prometheus (default on); for push, declare a periodic reader",
 				i,
 			)
 		}
