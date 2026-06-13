@@ -3,64 +3,108 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("hydration", defaultEnabled, newHydrationCollector)
+	registerCollector("hydration", DefaultEnabled, newHydrationCollector)
 }
 
 type hydrationCollector struct {
-	intakeML       *prometheus.Desc
-	goalML         *prometheus.Desc
-	dailyAvgML     *prometheus.Desc
-	sweatLossML    *prometheus.Desc
-	activityIntake *prometheus.Desc
-	logger         *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	intakeML       metric.Float64ObservableGauge
+	goalML         metric.Float64ObservableGauge
+	dailyAvgML     metric.Float64ObservableGauge
+	sweatLossML    metric.Float64ObservableGauge
+	activityIntake metric.Float64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newHydrationCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "hydration"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &hydrationCollector{
-		intakeML:       d("intake_ml", "Total hydration intake in millilitres."),
-		goalML:         d("goal_ml", "Daily hydration goal in millilitres."),
-		dailyAvgML:     d("daily_avg_ml", "Daily average hydration intake in millilitres."),
-		sweatLossML:    d("sweat_loss_ml", "Estimated sweat loss in millilitres."),
-		activityIntake: d("activity_intake_ml", "Hydration intake during activities in millilitres."),
-		logger:         logger,
-	}, nil
+func newHydrationCollector(log *slog.Logger) (Collector, error) {
+	return &hydrationCollector{log: log}, nil
 }
 
-func (c *hydrationCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *hydrationCollector) Name() string { return "hydration" }
 
-	h, err := client.Hydration(ctx, time.Now())
+func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.intakeML, err = meter.Float64ObservableGauge(
+		"garmin.hydration.intake_ml",
+		metric.WithDescription("Total hydration intake in millilitres."),
+		metric.WithUnit("mL"),
+	)
+	if err != nil {
+		return err
+	}
+	c.goalML, err = meter.Float64ObservableGauge(
+		"garmin.hydration.goal_ml",
+		metric.WithDescription("Daily hydration goal in millilitres."),
+		metric.WithUnit("mL"),
+	)
+	if err != nil {
+		return err
+	}
+	c.dailyAvgML, err = meter.Float64ObservableGauge(
+		"garmin.hydration.daily_avg_ml",
+		metric.WithDescription("Daily average hydration intake in millilitres."),
+		metric.WithUnit("mL"),
+	)
+	if err != nil {
+		return err
+	}
+	c.sweatLossML, err = meter.Float64ObservableGauge(
+		"garmin.hydration.sweat_loss_ml",
+		metric.WithDescription("Estimated sweat loss in millilitres."),
+		metric.WithUnit("mL"),
+	)
+	if err != nil {
+		return err
+	}
+	c.activityIntake, err = meter.Float64ObservableGauge(
+		"garmin.hydration.activity_intake_ml",
+		metric.WithDescription("Hydration intake during activities in millilitres."),
+		metric.WithUnit("mL"),
+	)
 	if err != nil {
 		return err
 	}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.intakeML, c.goalML, c.dailyAvgML, c.sweatLossML, c.activityIntake)
+	return err
+}
 
-	g(c.intakeML, h.ValueInML)
-	g(c.goalML, h.GoalInML)
+func (c *hydrationCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Hydration == nil {
+		return nil
+	}
+	h := snap.Hydration
+	o.ObserveFloat64(c.intakeML, h.ValueInML)
+	o.ObserveFloat64(c.goalML, h.GoalInML)
 	if h.DailyAverageinML > 0 {
-		g(c.dailyAvgML, h.DailyAverageinML)
+		o.ObserveFloat64(c.dailyAvgML, h.DailyAverageinML)
 	}
 	if h.SweatLossInML > 0 {
-		g(c.sweatLossML, h.SweatLossInML)
+		o.ObserveFloat64(c.sweatLossML, h.SweatLossInML)
 	}
 	if h.ActivityIntakeInML > 0 {
-		g(c.activityIntake, h.ActivityIntakeInML)
+		o.ObserveFloat64(c.activityIntake, h.ActivityIntakeInML)
 	}
 	return nil
+}
+
+func (c *hydrationCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

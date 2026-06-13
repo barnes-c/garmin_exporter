@@ -3,53 +3,76 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("stress", defaultEnabled, newStressCollector)
+	registerCollector("stress", DefaultEnabled, newStressCollector)
 }
 
 type stressCollector struct {
-	avgStressLevel *prometheus.Desc
-	maxStressLevel *prometheus.Desc
-	logger         *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	avgStressLevel metric.Int64ObservableGauge
+	maxStressLevel metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newStressCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "stress"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &stressCollector{
-		avgStressLevel: d("avg_level", "Average stress level for the day (0-100)."),
-		maxStressLevel: d("max_level", "Peak stress level for the day (0-100)."),
-		logger:         logger,
-	}, nil
+func newStressCollector(log *slog.Logger) (Collector, error) {
+	return &stressCollector{log: log}, nil
 }
 
-func (c *stressCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *stressCollector) Name() string { return "stress" }
 
-	s, err := client.AllDayStress(ctx, time.Now())
+func (c *stressCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.avgStressLevel, err = meter.Int64ObservableGauge(
+		"garmin.stress.avg_level",
+		metric.WithDescription("Average stress level for the day (0-100)."),
+		metric.WithUnit("{score}"),
+	)
+	if err != nil {
+		return err
+	}
+	c.maxStressLevel, err = meter.Int64ObservableGauge(
+		"garmin.stress.max_level",
+		metric.WithDescription("Peak stress level for the day (0-100)."),
+		metric.WithUnit("{score}"),
+	)
 	if err != nil {
 		return err
 	}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.avgStressLevel, c.maxStressLevel)
+	return err
+}
 
+func (c *stressCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Stress == nil {
+		return nil
+	}
+	s := snap.Stress
 	if s.AvgStressLevel > 0 {
-		g(c.avgStressLevel, float64(s.AvgStressLevel))
+		o.ObserveInt64(c.avgStressLevel, int64(s.AvgStressLevel))
 	}
 	if s.MaxStressLevel > 0 {
-		g(c.maxStressLevel, float64(s.MaxStressLevel))
+		o.ObserveInt64(c.maxStressLevel, int64(s.MaxStressLevel))
 	}
 	return nil
+}
+
+func (c *stressCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

@@ -4,47 +4,66 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("personalrecords", defaultEnabled, newPersonalRecordsCollector)
+	registerCollector("personalrecords", DefaultEnabled, newPersonalRecordsCollector)
 }
 
 type personalRecordsCollector struct {
-	value  *prometheus.Desc
-	logger *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	value metric.Float64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newPersonalRecordsCollector(logger *slog.Logger) (Collector, error) {
-	return &personalRecordsCollector{
-		value: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "personalrecords", "value"),
-			"Personal record value in raw Garmin units (varies by pr_type).",
-			[]string{"pr_type"}, nil),
-		logger: logger,
-	}, nil
+func newPersonalRecordsCollector(log *slog.Logger) (Collector, error) {
+	return &personalRecordsCollector{log: log}, nil
 }
 
-func (c *personalRecordsCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *personalRecordsCollector) Name() string { return "personalrecords" }
 
-	records, err := client.PersonalRecords(ctx)
+func (c *personalRecordsCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.value, err = meter.Float64ObservableGauge(
+		"garmin.personalrecords.value",
+		metric.WithDescription("Personal record value in raw Garmin units (varies by pr_type)."),
+	)
 	if err != nil {
 		return err
 	}
-	if len(records) == 0 {
-		return ErrNoData
-	}
 
-	for _, r := range records {
+	c.registration, err = meter.RegisterCallback(c.observe, c.value)
+	return err
+}
+
+func (c *personalRecordsCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil {
+		return nil
+	}
+	for _, r := range snap.PersonalRecords {
 		if r.PrTypeLabelKey == "" || r.Value == 0 {
 			continue
 		}
-		ch <- prometheus.MustNewConstMetric(c.value, prometheus.GaugeValue, r.Value, r.PrTypeLabelKey)
+		o.ObserveFloat64(c.value, r.Value, metric.WithAttributes(
+			attribute.String("pr_type", r.PrTypeLabelKey),
+		))
 	}
 	return nil
+}
+
+func (c *personalRecordsCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

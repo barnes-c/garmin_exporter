@@ -3,58 +3,88 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("respiration", defaultEnabled, newRespirationCollector)
+	registerCollector("respiration", DefaultEnabled, newRespirationCollector)
 }
 
 type respirationCollector struct {
-	avgWaking *prometheus.Desc
-	highest   *prometheus.Desc
-	lowest    *prometheus.Desc
-	logger    *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	avgWaking metric.Float64ObservableGauge
+	highest   metric.Float64ObservableGauge
+	lowest    metric.Float64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newRespirationCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "respiration"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &respirationCollector{
-		avgWaking: d("avg_waking_bpm", "Average waking respiration rate in breaths per minute."),
-		highest:   d("highest_bpm", "Highest respiration rate in breaths per minute."),
-		lowest:    d("lowest_bpm", "Lowest respiration rate in breaths per minute."),
-		logger:    logger,
-	}, nil
+func newRespirationCollector(log *slog.Logger) (Collector, error) {
+	return &respirationCollector{log: log}, nil
 }
 
-func (c *respirationCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *respirationCollector) Name() string { return "respiration" }
 
-	r, err := client.Respiration(ctx, time.Now())
+func (c *respirationCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.avgWaking, err = meter.Float64ObservableGauge(
+		"garmin.respiration.avg_waking_bpm",
+		metric.WithDescription("Average waking respiration rate in breaths per minute."),
+		metric.WithUnit("{breath}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.highest, err = meter.Float64ObservableGauge(
+		"garmin.respiration.highest_bpm",
+		metric.WithDescription("Highest respiration rate in breaths per minute."),
+		metric.WithUnit("{breath}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.lowest, err = meter.Float64ObservableGauge(
+		"garmin.respiration.lowest_bpm",
+		metric.WithDescription("Lowest respiration rate in breaths per minute."),
+		metric.WithUnit("{breath}/min"),
+	)
 	if err != nil {
 		return err
 	}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.avgWaking, c.highest, c.lowest)
+	return err
+}
 
+func (c *respirationCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Respiration == nil {
+		return nil
+	}
+	r := snap.Respiration
 	if r.TodayAvgWakingRespirationValue > 0 {
-		g(c.avgWaking, r.TodayAvgWakingRespirationValue)
+		o.ObserveFloat64(c.avgWaking, r.TodayAvgWakingRespirationValue)
 	}
 	if r.HighestRespirationValue > 0 {
-		g(c.highest, r.HighestRespirationValue)
+		o.ObserveFloat64(c.highest, r.HighestRespirationValue)
 	}
 	if r.LowestRespirationValue > 0 {
-		g(c.lowest, r.LowestRespirationValue)
+		o.ObserveFloat64(c.lowest, r.LowestRespirationValue)
 	}
 	return nil
+}
+
+func (c *respirationCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

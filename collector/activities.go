@@ -5,80 +5,115 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("activities", defaultEnabled, newActivitiesCollector)
+	registerCollector("activities", DefaultEnabled, newActivitiesCollector)
 }
 
 type activitiesCollector struct {
-	count         *prometheus.Desc
-	durationTotal *prometheus.Desc
-	distanceTotal *prometheus.Desc
-	caloriesTotal *prometheus.Desc
-	lastTimestamp *prometheus.Desc
-	lifetimeCount *prometheus.Desc
-	logger        *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	count         metric.Int64ObservableGauge
+	durationTotal metric.Float64ObservableGauge
+	distanceTotal metric.Float64ObservableGauge
+	caloriesTotal metric.Float64ObservableGauge
+	lastTimestamp metric.Int64ObservableGauge
+	lifetimeCount metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newActivitiesCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "activity"
-	labels := []string{"type"}
-	return &activitiesCollector{
-		count: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "count"),
-			"Number of activities fetched.", labels, nil),
-		durationTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "duration_seconds_total"),
-			"Sum of activity durations in seconds.", labels, nil),
-		distanceTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "distance_meters_total"),
-			"Sum of activity distances in meters.", labels, nil),
-		caloriesTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "calories_total"),
-			"Sum of activity calories.", labels, nil),
-		lastTimestamp: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "last_timestamp_seconds"),
-			"Unix timestamp of the most recent activity of this type.", labels, nil),
-		lifetimeCount: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "lifetime_count"),
-			"Total number of activities ever recorded.", nil, nil),
-		logger: logger,
-	}, nil
+func newActivitiesCollector(log *slog.Logger) (Collector, error) {
+	return &activitiesCollector{log: log}, nil
 }
 
-func (c *activitiesCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *activitiesCollector) Name() string { return "activities" }
 
-	if total, err := client.ActivityCount(ctx); err != nil {
-		c.logger.Warn("failed to fetch lifetime activity count", "err", err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(c.lifetimeCount, prometheus.GaugeValue, float64(total))
-	}
+func (c *activitiesCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
 
-	activities, err := client.Activities(ctx, activityLimit)
-	if err != nil {
+	var err error
+	if c.count, err = meter.Int64ObservableGauge(
+		"garmin.activity.count",
+		metric.WithDescription("Number of activities fetched."),
+		metric.WithUnit("{activity}"),
+	); err != nil {
 		return err
 	}
-	if len(activities) == 0 {
-		return ErrNoData
+	if c.durationTotal, err = meter.Float64ObservableGauge(
+		"garmin.activity.duration_seconds_total",
+		metric.WithDescription("Sum of activity durations in seconds."),
+		metric.WithUnit("s"),
+	); err != nil {
+		return err
+	}
+	if c.distanceTotal, err = meter.Float64ObservableGauge(
+		"garmin.activity.distance_meters_total",
+		metric.WithDescription("Sum of activity distances in meters."),
+		metric.WithUnit("m"),
+	); err != nil {
+		return err
+	}
+	if c.caloriesTotal, err = meter.Float64ObservableGauge(
+		"garmin.activity.calories_total",
+		metric.WithDescription("Sum of activity calories."),
+		metric.WithUnit("kcal"),
+	); err != nil {
+		return err
+	}
+	if c.lastTimestamp, err = meter.Int64ObservableGauge(
+		"garmin.activity.last_timestamp_seconds",
+		metric.WithDescription("Unix timestamp of the most recent activity of this type."),
+		metric.WithUnit("s"),
+	); err != nil {
+		return err
+	}
+	if c.lifetimeCount, err = meter.Int64ObservableGauge(
+		"garmin.activity.lifetime_count",
+		metric.WithDescription("Total number of activities ever recorded."),
+		metric.WithUnit("{activity}"),
+	); err != nil {
+		return err
+	}
+
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.count, c.durationTotal, c.distanceTotal, c.caloriesTotal,
+		c.lastTimestamp, c.lifetimeCount,
+	)
+	return err
+}
+
+func (c *activitiesCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Activities == nil {
+		return nil
+	}
+	a := snap.Activities
+
+	if a.Lifetime > 0 {
+		o.ObserveInt64(c.lifetimeCount, int64(a.Lifetime))
+	}
+	if len(a.Recent) == 0 {
+		return nil
 	}
 
 	type stats struct {
-		count    float64
+		count    int64
 		duration float64
 		distance float64
 		calories float64
-		lastTS   float64
+		lastTS   int64
 	}
 	byType := make(map[string]*stats)
 
-	for _, a := range activities {
-		typeKey := a.ActivityType.TypeKey
+	for _, act := range a.Recent {
+		typeKey := act.ActivityType.TypeKey
 		if typeKey == "" {
 			typeKey = "unknown"
 		}
@@ -88,31 +123,36 @@ func (c *activitiesCollector) Update(ctx context.Context, ch chan<- prometheus.M
 			byType[typeKey] = s
 		}
 		s.count++
-		s.duration += a.Duration
-		s.distance += a.Distance
-		s.calories += a.Calories
+		s.duration += act.Duration
+		s.distance += act.Distance
+		s.calories += act.Calories
 
-		if a.StartTimeGMT != "" {
-			t, err := time.Parse("2006-01-02 15:04:05", a.StartTimeGMT)
+		if act.StartTimeGMT != "" {
+			t, err := time.Parse("2006-01-02 15:04:05", act.StartTimeGMT)
 			if err != nil {
-				c.logger.Warn("failed to parse activity timestamp", "value", a.StartTimeGMT, "err", err)
-			} else {
-				ts := float64(t.Unix())
-				if ts > s.lastTS {
-					s.lastTS = ts
-				}
+				c.log.Warn("failed to parse activity timestamp", "value", act.StartTimeGMT, "err", err)
+			} else if ts := t.Unix(); ts > s.lastTS {
+				s.lastTS = ts
 			}
 		}
 	}
 
 	for typeKey, s := range byType {
-		ch <- prometheus.MustNewConstMetric(c.count, prometheus.GaugeValue, s.count, typeKey)
-		ch <- prometheus.MustNewConstMetric(c.durationTotal, prometheus.GaugeValue, s.duration, typeKey)
-		ch <- prometheus.MustNewConstMetric(c.distanceTotal, prometheus.GaugeValue, s.distance, typeKey)
-		ch <- prometheus.MustNewConstMetric(c.caloriesTotal, prometheus.GaugeValue, s.calories, typeKey)
+		attrs := metric.WithAttributes(attribute.String("type", typeKey))
+		o.ObserveInt64(c.count, s.count, attrs)
+		o.ObserveFloat64(c.durationTotal, s.duration, attrs)
+		o.ObserveFloat64(c.distanceTotal, s.distance, attrs)
+		o.ObserveFloat64(c.caloriesTotal, s.calories, attrs)
 		if s.lastTS > 0 {
-			ch <- prometheus.MustNewConstMetric(c.lastTimestamp, prometheus.GaugeValue, s.lastTS, typeKey)
+			o.ObserveInt64(c.lastTimestamp, s.lastTS, attrs)
 		}
 	}
 	return nil
+}
+
+func (c *activitiesCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }
