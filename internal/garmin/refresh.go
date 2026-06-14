@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -51,7 +52,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 
 		call := func(name string, fn func(ctx context.Context) error) {
 			attempts++
-			childCtx, span := tracer.Start(ctx, "garmin."+name)
+			childCtx, span := otel.Tracer("garmin_exporter").Start(ctx, "garmin."+name)
 			err := fn(childCtx)
 			endSpan(span, err)
 			if err != nil {
@@ -246,7 +247,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			return err
 		})
 		call("Training", func(ctx context.Context) error {
-			t, err := collectTraining(ctx, gc, now, log, tracer)
+			t, err := collectTraining(ctx, gc, now, log)
 			if err != nil {
 				return err
 			}
@@ -283,13 +284,13 @@ func parseCyclingFTP(result map[string]json.RawMessage) (float64, bool) {
 // collectTraining fans out the five training-related endpoints. Any individual
 // failure logs at debug and leaves the corresponding field nil; the whole
 // call only fails if every endpoint failed.
-func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Time, log *slog.Logger, tracer trace.Tracer) (*Training, error) {
+func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Time, log *slog.Logger) (*Training, error) {
 	t := &Training{}
 	var attempts, failures int
 
 	sub := func(name string, fn func(ctx context.Context) error) {
 		attempts++
-		childCtx, span := tracer.Start(ctx, "garmin."+name)
+		childCtx, span := otel.Tracer("garmin_exporter").Start(ctx, "garmin."+name)
 		err := fn(childCtx)
 		endSpan(span, err)
 		if err != nil {
