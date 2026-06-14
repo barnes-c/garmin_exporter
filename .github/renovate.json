@@ -18,6 +18,16 @@
       "automerge": true
     },
     {
+      "description": "slsa-github-generator reusable workflows must stay tag-pinned; their builder script rejects SHA refs.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "slsa-framework/slsa-github-generator"
+      ],
+      "pinDigests": false
+    },
+    {
       "matchManagers": [
         "gomod"
       ],
