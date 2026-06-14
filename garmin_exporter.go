@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"log/slog"
+
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/prometheus/common/promslog"
-	"github.com/prometheus/common/promslog/flag"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
@@ -67,6 +67,9 @@ var (
 	).Default("true").Bool()
 
 	toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
+
+	logLevel = kingpin.Flag("log.level", "Log level (debug, info, warn, error).").
+			Default("info").String()
 )
 
 const otelHelp = `OTel pipeline configuration is environment-driven; see the spec for the
@@ -112,15 +115,17 @@ func buildHandler(res *otel.Result, metricsPath string, readyChecks map[string]p
 }
 
 func main() {
-	promslogConfig := &promslog.Config{}
-	flag.AddFlags(kingpin.CommandLine, promslogConfig)
 	kingpin.Version(version.Print("garmin_exporter"))
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 	kingpin.HelpFlag.Short('h')
 	kingpin.CommandLine.Help = otelHelp
 	kingpin.Parse()
 
-	logger := promslog.New(promslogConfig)
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
+		level = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	runtime.GOMAXPROCS(*maxProcs)
 
 	rootCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
