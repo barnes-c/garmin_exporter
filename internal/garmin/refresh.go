@@ -308,24 +308,16 @@ func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Tim
 		return err
 	})
 	sub("EnduranceScore", func() error {
-		raw, err := gc.EnduranceScore(ctx, now.AddDate(0, 0, -7), now)
+		entries, err := gc.EnduranceScore(ctx, now.AddDate(0, 0, -7), now)
 		if err != nil {
-			return err
-		}
-		var entries []garminconnect.EnduranceScoreEntry
-		if err := json.Unmarshal(raw, &entries); err != nil {
 			return err
 		}
 		t.Endurance = entries
 		return nil
 	})
 	sub("HillScore", func() error {
-		raw, err := gc.HillScore(ctx, now.AddDate(0, 0, -7), now)
+		entries, err := gc.HillScore(ctx, now.AddDate(0, 0, -7), now)
 		if err != nil {
-			return err
-		}
-		var entries []garminconnect.HillScoreEntry
-		if err := json.Unmarshal(raw, &entries); err != nil {
 			return err
 		}
 		t.Hill = entries
