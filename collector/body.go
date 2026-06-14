@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("body", DefaultEnabled, newBodyCollector)
+	registerCollector("body", DefaultEnabled, newBodyCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Body != nil }))
 }
 
 type bodyCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -25,8 +27,6 @@ type bodyCollector struct {
 	muscleMass   metric.Float64ObservableGauge
 	visceralFat  metric.Float64ObservableGauge
 	metabolicAge metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newBodyCollector(log *slog.Logger) (Collector, error) {
@@ -141,11 +141,4 @@ func (c *bodyCollector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveFloat64(c.metabolicAge, w.MetabolicAge)
 	}
 	return nil
-}
-
-func (c *bodyCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

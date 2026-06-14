@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerCollector("intensity", DefaultEnabled, newIntensityCollector)
+	registerCollector("intensity", DefaultEnabled, newIntensityCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Intensity != nil }))
 }
 
 type intensityCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	weeklyGoal   metric.Int64ObservableGauge
 	moderateMins metric.Int64ObservableGauge
 	vigorousMins metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newIntensityCollector(log *slog.Logger) (Collector, error) {
@@ -74,11 +74,4 @@ func (c *intensityCollector) observe(_ context.Context, o metric.Observer) error
 	o.ObserveInt64(c.moderateMins, int64(im.ModerateIntensityMinutes))
 	o.ObserveInt64(c.vigorousMins, int64(im.VigorousIntensityMinutes))
 	return nil
-}
-
-func (c *intensityCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

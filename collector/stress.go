@@ -10,17 +10,17 @@ import (
 )
 
 func init() {
-	registerCollector("stress", DefaultEnabled, newStressCollector)
+	registerCollector("stress", DefaultEnabled, newStressCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Stress != nil }))
 }
 
 type stressCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	avgStressLevel metric.Int64ObservableGauge
 	maxStressLevel metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newStressCollector(log *slog.Logger) (Collector, error) {
@@ -68,11 +68,4 @@ func (c *stressCollector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveInt64(c.maxStressLevel, int64(s.MaxStressLevel))
 	}
 	return nil
-}
-
-func (c *stressCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

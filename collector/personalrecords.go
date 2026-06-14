@@ -11,16 +11,16 @@ import (
 )
 
 func init() {
-	registerCollector("personalrecords", DefaultEnabled, newPersonalRecordsCollector)
+	registerCollector("personalrecords", DefaultEnabled, newPersonalRecordsCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.PersonalRecords != nil }))
 }
 
 type personalRecordsCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	value metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newPersonalRecordsCollector(log *slog.Logger) (Collector, error) {
@@ -59,11 +59,4 @@ func (c *personalRecordsCollector) observe(_ context.Context, o metric.Observer)
 		))
 	}
 	return nil
-}
-
-func (c *personalRecordsCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

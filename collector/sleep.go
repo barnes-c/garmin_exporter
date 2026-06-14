@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("sleep", DefaultEnabled, newSleepCollector)
+	registerCollector("sleep", DefaultEnabled, newSleepCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Sleep != nil }))
 }
 
 type sleepCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -36,8 +38,6 @@ type sleepCollector struct {
 	hrvBaselineLowUpper      metric.Int64ObservableGauge
 	hrvBaselineBalancedLow   metric.Int64ObservableGauge
 	hrvBaselineBalancedUpper metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newSleepCollector(log *slog.Logger) (Collector, error) {
@@ -183,11 +183,4 @@ func (c *sleepCollector) observe(_ context.Context, o metric.Observer) error {
 		}
 	}
 	return nil
-}
-
-func (c *sleepCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("hydration", DefaultEnabled, newHydrationCollector)
+	registerCollector("hydration", DefaultEnabled, newHydrationCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Hydration != nil }))
 }
 
 type hydrationCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -22,8 +24,6 @@ type hydrationCollector struct {
 	dailyAvgML     metric.Float64ObservableGauge
 	sweatLossML    metric.Float64ObservableGauge
 	activityIntake metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newHydrationCollector(log *slog.Logger) (Collector, error) {
@@ -100,11 +100,4 @@ func (c *hydrationCollector) observe(_ context.Context, o metric.Observer) error
 		o.ObserveFloat64(c.activityIntake, h.ActivityIntakeInML)
 	}
 	return nil
-}
-
-func (c *hydrationCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

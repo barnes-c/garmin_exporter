@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerCollector("bloodpressure", DefaultEnabled, newBloodPressureCollector)
+	registerCollector("bloodpressure", DefaultEnabled, newBloodPressureCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.BloodPressure != nil }))
 }
 
 type bloodPressureCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	systolic  metric.Int64ObservableGauge
 	diastolic metric.Int64ObservableGauge
 	pulse     metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newBloodPressureCollector(log *slog.Logger) (Collector, error) {
@@ -80,11 +80,4 @@ func (c *bloodPressureCollector) observe(_ context.Context, o metric.Observer) e
 		o.ObserveInt64(c.pulse, int64(latest.Pulse))
 	}
 	return nil
-}
-
-func (c *bloodPressureCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

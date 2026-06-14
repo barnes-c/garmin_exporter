@@ -10,17 +10,17 @@ import (
 )
 
 func init() {
-	registerCollector("golf", DefaultDisabled, newGolfCollector)
+	registerCollector("golf", DefaultDisabled, newGolfCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Golf != nil }))
 }
 
 type golfCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	lastScore metric.Int64ObservableGauge
 	lastToPar metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newGolfCollector(log *slog.Logger) (Collector, error) {
@@ -64,11 +64,4 @@ func (c *golfCollector) observe(_ context.Context, o metric.Observer) error {
 	o.ObserveInt64(c.lastScore, int64(latest.TotalScore))
 	o.ObserveInt64(c.lastToPar, int64(latest.ToPar))
 	return nil
-}
-
-func (c *golfCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

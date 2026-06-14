@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("heartrate", DefaultEnabled, newHeartRateCollector)
+	registerCollector("heartrate", DefaultEnabled, newHeartRateCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.HeartRate != nil }))
 }
 
 type heartRateCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -21,8 +23,6 @@ type heartRateCollector struct {
 	min         metric.Int64ObservableGauge
 	max         metric.Int64ObservableGauge
 	sevenDayAvg metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newHeartRateCollector(log *slog.Logger) (Collector, error) {
@@ -92,11 +92,4 @@ func (c *heartRateCollector) observe(_ context.Context, o metric.Observer) error
 		o.ObserveInt64(c.sevenDayAvg, int64(hr.LastSevenDaysAvgRestingHeartRate))
 	}
 	return nil
-}
-
-func (c *heartRateCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

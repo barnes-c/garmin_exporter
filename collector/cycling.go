@@ -10,16 +10,16 @@ import (
 )
 
 func init() {
-	registerCollector("cycling", DefaultEnabled, newCyclingCollector)
+	registerCollector("cycling", DefaultEnabled, newCyclingCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Cycling != nil }))
 }
 
 type cyclingCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	ftp metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newCyclingCollector(log *slog.Logger) (Collector, error) {
@@ -52,11 +52,4 @@ func (c *cyclingCollector) observe(_ context.Context, o metric.Observer) error {
 	}
 	o.ObserveFloat64(c.ftp, snap.Cycling.FTPWatts)
 	return nil
-}
-
-func (c *cyclingCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

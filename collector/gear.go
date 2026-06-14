@@ -11,18 +11,18 @@ import (
 )
 
 func init() {
-	registerCollector("gear", DefaultEnabled, newGearCollector)
+	registerCollector("gear", DefaultEnabled, newGearCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Gear != nil }))
 }
 
 type gearCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	maxMeters        metric.Int64ObservableGauge
 	notifiedAtMeters metric.Int64ObservableGauge
 	active           metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newGearCollector(log *slog.Logger) (Collector, error) {
@@ -87,11 +87,4 @@ func (c *gearCollector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveInt64(c.active, active, attrs)
 	}
 	return nil
-}
-
-func (c *gearCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

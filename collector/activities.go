@@ -12,10 +12,12 @@ import (
 )
 
 func init() {
-	registerCollector("activities", DefaultEnabled, newActivitiesCollector)
+	registerCollector("activities", DefaultEnabled, newActivitiesCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Activities != nil }))
 }
 
 type activitiesCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -25,8 +27,6 @@ type activitiesCollector struct {
 	caloriesTotal metric.Float64ObservableGauge
 	lastTimestamp metric.Int64ObservableGauge
 	lifetimeCount metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newActivitiesCollector(log *slog.Logger) (Collector, error) {
@@ -148,11 +148,4 @@ func (c *activitiesCollector) observe(_ context.Context, o metric.Observer) erro
 		}
 	}
 	return nil
-}
-
-func (c *activitiesCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

@@ -12,17 +12,17 @@ import (
 )
 
 func init() {
-	registerCollector("devices", DefaultEnabled, newDevicesCollector)
+	registerCollector("devices", DefaultEnabled, newDevicesCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Devices != nil }))
 }
 
 type devicesCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	info  metric.Int64ObservableGauge
 	count metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newDevicesCollector(log *slog.Logger) (Collector, error) {
@@ -72,11 +72,4 @@ func (c *devicesCollector) observe(_ context.Context, o metric.Observer) error {
 		))
 	}
 	return nil
-}
-
-func (c *devicesCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

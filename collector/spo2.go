@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerCollector("spo2", DefaultEnabled, newSpO2Collector)
+	registerCollector("spo2", DefaultEnabled, newSpO2Collector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.SpO2 != nil }))
 }
 
 type spO2Collector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	average     metric.Float64ObservableGauge
 	lowest      metric.Float64ObservableGauge
 	sevenDayAvg metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newSpO2Collector(log *slog.Logger) (Collector, error) {
@@ -80,11 +80,4 @@ func (c *spO2Collector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveFloat64(c.sevenDayAvg, s.LastSevenDaysAvgSpO2)
 	}
 	return nil
-}
-
-func (c *spO2Collector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

@@ -10,17 +10,17 @@ import (
 )
 
 func init() {
-	registerCollector("runningtolerance", DefaultEnabled, newRunningToleranceCollector)
+	registerCollector("runningtolerance", DefaultEnabled, newRunningToleranceCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.RunningTolerance != nil }))
 }
 
 type runningToleranceCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	score metric.Float64ObservableGauge
 	level metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newRunningToleranceCollector(log *slog.Logger) (Collector, error) {
@@ -65,11 +65,4 @@ func (c *runningToleranceCollector) observe(_ context.Context, o metric.Observer
 		o.ObserveInt64(c.level, int64(latest.Level))
 	}
 	return nil
-}
-
-func (c *runningToleranceCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

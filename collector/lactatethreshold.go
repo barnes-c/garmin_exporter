@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerCollector("lactatethreshold", DefaultEnabled, newLactateThresholdCollector)
+	registerCollector("lactatethreshold", DefaultEnabled, newLactateThresholdCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.LactateThreshold != nil }))
 }
 
 type lactateThresholdCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	runningSpeedMPS  metric.Float64ObservableGauge
 	runningHeartRate metric.Int64ObservableGauge
 	cyclingHeartRate metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newLactateThresholdCollector(log *slog.Logger) (Collector, error) {
@@ -80,11 +80,4 @@ func (c *lactateThresholdCollector) observe(_ context.Context, o metric.Observer
 		o.ObserveInt64(c.cyclingHeartRate, int64(*e.HeartRateCycling))
 	}
 	return nil
-}
-
-func (c *lactateThresholdCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

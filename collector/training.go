@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("training", DefaultEnabled, newTrainingCollector)
+	registerCollector("training", DefaultEnabled, newTrainingCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Training != nil }))
 }
 
 type trainingCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -30,8 +32,6 @@ type trainingCollector struct {
 	raceMarathon      metric.Int64ObservableGauge
 	enduranceScore    metric.Float64ObservableGauge
 	hillScore         metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newTrainingCollector(log *slog.Logger) (Collector, error) {
@@ -171,11 +171,4 @@ func (c *trainingCollector) observe(_ context.Context, o metric.Observer) error 
 		}
 	}
 	return nil
-}
-
-func (c *trainingCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

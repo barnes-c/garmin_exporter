@@ -10,18 +10,18 @@ import (
 )
 
 func init() {
-	registerCollector("respiration", DefaultEnabled, newRespirationCollector)
+	registerCollector("respiration", DefaultEnabled, newRespirationCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Respiration != nil }))
 }
 
 type respirationCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	avgWaking metric.Float64ObservableGauge
 	highest   metric.Float64ObservableGauge
 	lowest    metric.Float64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newRespirationCollector(log *slog.Logger) (Collector, error) {
@@ -80,11 +80,4 @@ func (c *respirationCollector) observe(_ context.Context, o metric.Observer) err
 		o.ObserveFloat64(c.lowest, r.LowestRespirationValue)
 	}
 	return nil
-}
-
-func (c *respirationCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

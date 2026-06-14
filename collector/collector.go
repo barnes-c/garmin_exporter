@@ -4,6 +4,7 @@
 package collector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/alecthomas/kingpin/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
@@ -31,9 +33,51 @@ type Collector interface {
 	Close() error
 }
 
+// DepCheck reports whether a collector's data dependency is currently
+// available. Declared once at registerCollector time and consulted by
+// Group when emitting garmin.collector.up; lets alerts distinguish "no
+// data" from "actually zero" without each collector implementing the
+// same predicate.
+type DepCheck func(garmin.Source) bool
+
+// SnapshotAvailable is the dep check for collectors that only need any
+// snapshot to exist (i.e. scraper has run at least once).
+var SnapshotAvailable DepCheck = func(s garmin.Source) bool {
+	return s != nil && s.Snapshot() != nil
+}
+
+// SnapshotHas builds a DepCheck that requires a non-nil snapshot and a
+// specific sub-field within it. Mirrors ovs-exporter's UnixctlHas pattern
+// for the Garmin best-effort per-endpoint fetch.
+func SnapshotHas(f func(*garmin.Snapshot) bool) DepCheck {
+	return func(s garmin.Source) bool {
+		if s == nil {
+			return false
+		}
+		snap := s.Snapshot()
+		return snap != nil && f(snap)
+	}
+}
+
+// registrar carries the OTel callback handle that every collector needs to
+// unregister on shutdown. Collectors embed it so they don't each have to
+// reimplement the same Close().
+type registrar struct {
+	registration metric.Registration
+}
+
+// Close unregisters the embedded callback. Safe to call before Register.
+func (r *registrar) Close() error {
+	if r.registration == nil {
+		return nil
+	}
+	return r.registration.Unregister()
+}
+
 var (
 	factoriesMu      sync.Mutex
 	factories        = make(map[string]func(logger *slog.Logger) (Collector, error))
+	collectorDeps    = make(map[string]DepCheck)
 	collectorState   = make(map[string]*bool)
 	forcedCollectors = make(map[string]bool)
 )
@@ -41,8 +85,9 @@ var (
 // registerCollector adds a sub-collector to the registry and declares its
 // --collector.<name> flag. Called from init() in each collector file. The
 // flag's Action records the collector as "forced" so DisableDefaultCollectors
-// knows to leave operator-set values alone.
-func registerCollector(name string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error)) {
+// knows to leave operator-set values alone. dep is the data-availability
+// predicate consulted by the garmin.collector.up gauge.
+func registerCollector(name string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error), dep DepCheck) {
 	helpDefaultState := "disabled"
 	if isDefaultEnabled {
 		helpDefaultState = "enabled"
@@ -60,6 +105,7 @@ func registerCollector(name string, isDefaultEnabled bool, factory func(logger *
 	defer factoriesMu.Unlock()
 	collectorState[name] = flag
 	factories[name] = factory
+	collectorDeps[name] = dep
 }
 
 // collectorFlagAction tags a collector as explicitly set by the operator so
@@ -104,6 +150,10 @@ func Registered() []string {
 type Group struct {
 	log        *slog.Logger
 	collectors map[string]Collector
+	deps       map[string]DepCheck
+	src        garmin.Source
+	upGauge    metric.Int64ObservableGauge
+	upCallback metric.Registration
 }
 
 // NewGroup instantiates every enabled collector. If filters is non-empty,
@@ -126,6 +176,7 @@ func NewGroup(logger *slog.Logger, filters ...string) (*Group, error) {
 	}
 
 	out := make(map[string]Collector)
+	deps := make(map[string]DepCheck)
 	for name, state := range collectorState {
 		if !*state {
 			continue
@@ -138,24 +189,60 @@ func NewGroup(logger *slog.Logger, filters ...string) (*Group, error) {
 			return nil, fmt.Errorf("instantiate %s: %w", name, err)
 		}
 		out[name] = c
+		deps[name] = collectorDeps[name]
 	}
-	return &Group{log: logger, collectors: out}, nil
+	return &Group{log: logger, collectors: out, deps: deps}, nil
 }
 
-// RegisterAll calls Register on every collector in the group, passing the
-// supplied Meter and Source. Stops and returns on the first error.
+// RegisterAll calls Register on every collector in the group, then registers
+// a shared garmin.collector.up gauge whose value is driven by each
+// collector's registry-declared DepCheck.
 func (g *Group) RegisterAll(meter metric.Meter, src garmin.Source) error {
+	g.src = src
 	for name, c := range g.collectors {
 		if err := c.Register(meter, src); err != nil {
 			return fmt.Errorf("register %s: %w", name, err)
 		}
 	}
+
+	if len(g.collectors) == 0 {
+		return nil
+	}
+
+	var err error
+	g.upGauge, err = meter.Int64ObservableGauge(
+		"garmin.collector.up",
+		metric.WithDescription("1 if the collector's data dependency is currently available; 0 otherwise."),
+	)
+	if err != nil {
+		return fmt.Errorf("create garmin.collector.up: %w", err)
+	}
+	g.upCallback, err = meter.RegisterCallback(g.observeUp, g.upGauge)
+	if err != nil {
+		return fmt.Errorf("register garmin.collector.up callback: %w", err)
+	}
 	return nil
 }
 
-// Close calls Close on every collector and joins their errors.
+func (g *Group) observeUp(_ context.Context, o metric.Observer) error {
+	for name := range g.collectors {
+		v := int64(0)
+		if dep := g.deps[name]; dep != nil && dep(g.src) {
+			v = 1
+		}
+		o.ObserveInt64(g.upGauge, v, metric.WithAttributes(attribute.String("collector", name)))
+	}
+	return nil
+}
+
+// Close unregisters the shared up callback and closes every collector.
 func (g *Group) Close() error {
 	var errs []error
+	if g.upCallback != nil {
+		if err := g.upCallback.Unregister(); err != nil {
+			errs = append(errs, fmt.Errorf("unregister garmin.collector.up: %w", err))
+		}
+	}
 	for name, c := range g.collectors {
 		if err := c.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close %s: %w", name, err))

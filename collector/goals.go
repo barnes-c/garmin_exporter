@@ -10,17 +10,17 @@ import (
 )
 
 func init() {
-	registerCollector("goals", DefaultEnabled, newGoalsCollector)
+	registerCollector("goals", DefaultEnabled, newGoalsCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Goals != nil }))
 }
 
 type goalsCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
 	activeGoals  metric.Int64ObservableGauge
 	earnedBadges metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newGoalsCollector(log *slog.Logger) (Collector, error) {
@@ -68,11 +68,4 @@ func (c *goalsCollector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveInt64(c.earnedBadges, int64(len(g.Badges)))
 	}
 	return nil
-}
-
-func (c *goalsCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }

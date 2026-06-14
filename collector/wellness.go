@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerCollector("wellness", DefaultEnabled, newWellnessCollector)
+	registerCollector("wellness", DefaultEnabled, newWellnessCollector,
+		SnapshotHas(func(s *garmin.Snapshot) bool { return s.UserSummary != nil }))
 }
 
 type wellnessCollector struct {
+	registrar
 	log *slog.Logger
 	src garmin.Source
 
@@ -48,8 +50,6 @@ type wellnessCollector struct {
 	bodyBatteryHighest      metric.Int64ObservableGauge
 	bodyBatteryLowest       metric.Int64ObservableGauge
 	bodyBatteryLatest       metric.Int64ObservableGauge
-
-	registration metric.Registration
 }
 
 func newWellnessCollector(log *slog.Logger) (Collector, error) {
@@ -237,11 +237,4 @@ func (c *wellnessCollector) observe(_ context.Context, o metric.Observer) error 
 		o.ObserveInt64(c.bodyBatteryLatest, int64(s.BodyBatteryMostRecentValue))
 	}
 	return nil
-}
-
-func (c *wellnessCollector) Close() error {
-	if c.registration == nil {
-		return nil
-	}
-	return c.registration.Unregister()
 }
