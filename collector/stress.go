@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("stress", DefaultEnabled, newStressCollector,
+	registerCollector("stress", newStressCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Stress != nil }))
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registerCollector("activities", DefaultEnabled, newActivitiesCollector,
+	registerCollector("activities", newActivitiesCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Activities != nil }))
 }
 

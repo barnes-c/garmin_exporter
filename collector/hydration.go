@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("hydration", DefaultEnabled, newHydrationCollector,
+	registerCollector("hydration", newHydrationCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Hydration != nil }))
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("trainingstatus", DefaultEnabled, newTrainingStatusCollector,
+	registerCollector("trainingstatus", newTrainingStatusCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.TrainingStatus != nil }))
 }
 

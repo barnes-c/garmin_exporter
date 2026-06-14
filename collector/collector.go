@@ -11,16 +11,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/alecthomas/kingpin/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
-)
-
-const (
-	DefaultEnabled  = true
-	DefaultDisabled = false
 )
 
 // Collector is the contract each sub-collector implements. Register installs
@@ -75,64 +69,23 @@ func (r *registrar) Close() error {
 }
 
 var (
-	factoriesMu      sync.Mutex
-	factories        = make(map[string]func(logger *slog.Logger) (Collector, error))
-	collectorDeps    = make(map[string]DepCheck)
-	collectorState   = make(map[string]*bool)
-	forcedCollectors = make(map[string]bool)
+	factoriesMu   sync.Mutex
+	factories     = make(map[string]func(logger *slog.Logger) (Collector, error))
+	collectorDeps = make(map[string]DepCheck)
 )
 
-// registerCollector adds a sub-collector to the registry and declares its
-// --collector.<name> flag. Called from init() in each collector file. The
-// flag's Action records the collector as "forced" so DisableDefaultCollectors
-// knows to leave operator-set values alone. dep is the data-availability
-// predicate consulted by the garmin.collector.up gauge.
-func registerCollector(name string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error), dep DepCheck) {
-	helpDefaultState := "disabled"
-	if isDefaultEnabled {
-		helpDefaultState = "enabled"
-	}
-	flagName := fmt.Sprintf("collector.%s", name)
-	flagHelp := fmt.Sprintf("Enable the %s collector (default: %s).", name, helpDefaultState)
-	defaultValue := fmt.Sprintf("%v", isDefaultEnabled)
-
-	flag := kingpin.Flag(flagName, flagHelp).
-		Default(defaultValue).
-		Action(collectorFlagAction(name)).
-		Bool()
-
+// registerCollector adds a sub-collector to the registry. Called from init()
+// in each collector file. dep is the data-availability predicate consulted by
+// the garmin.collector.up gauge.
+func registerCollector(name string, factory func(logger *slog.Logger) (Collector, error), dep DepCheck) {
 	factoriesMu.Lock()
 	defer factoriesMu.Unlock()
-	collectorState[name] = flag
 	factories[name] = factory
 	collectorDeps[name] = dep
 }
 
-// collectorFlagAction tags a collector as explicitly set by the operator so
-// DisableDefaultCollectors does not override it.
-func collectorFlagAction(name string) func(*kingpin.ParseContext) error {
-	return func(*kingpin.ParseContext) error {
-		factoriesMu.Lock()
-		forcedCollectors[name] = true
-		factoriesMu.Unlock()
-		return nil
-	}
-}
-
-// DisableDefaultCollectors flips every non-explicitly-set collector to
-// disabled. Used by --collector.disable-defaults to switch into opt-in mode.
-func DisableDefaultCollectors() {
-	factoriesMu.Lock()
-	defer factoriesMu.Unlock()
-	for name, state := range collectorState {
-		if !forcedCollectors[name] {
-			*state = false
-		}
-	}
-}
-
 // Registered returns the names of every collector known to the registry,
-// regardless of enable state. Sorted alphabetically.
+// sorted alphabetically.
 func Registered() []string {
 	factoriesMu.Lock()
 	defer factoriesMu.Unlock()
@@ -144,9 +97,9 @@ func Registered() []string {
 	return out
 }
 
-// Group is the live set of enabled sub-collectors. It owns each instance and
-// is the surface main.go uses to register everything against a Meter and to
-// close cleanly at shutdown.
+// Group is the live set of sub-collectors. It owns each instance and is the
+// surface main.go uses to register everything against a Meter and to close
+// cleanly at shutdown.
 type Group struct {
 	log        *slog.Logger
 	collectors map[string]Collector
@@ -156,35 +109,27 @@ type Group struct {
 	upCallback metric.Registration
 }
 
-// NewGroup instantiates every enabled collector. If filters is non-empty,
-// the result is restricted to that subset; filtering an unknown or disabled
-// collector is an error.
+// NewGroup instantiates every registered collector. If filters is non-empty,
+// the result is restricted to that named subset; an unknown name is an error.
 func NewGroup(logger *slog.Logger, filters ...string) (*Group, error) {
 	factoriesMu.Lock()
 	defer factoriesMu.Unlock()
 
 	filterSet := make(map[string]bool, len(filters))
 	for _, f := range filters {
-		state, ok := collectorState[f]
-		if !ok {
+		if _, ok := factories[f]; !ok {
 			return nil, fmt.Errorf("unknown collector: %s", f)
-		}
-		if !*state {
-			return nil, fmt.Errorf("disabled collector: %s", f)
 		}
 		filterSet[f] = true
 	}
 
 	out := make(map[string]Collector)
 	deps := make(map[string]DepCheck)
-	for name, state := range collectorState {
-		if !*state {
-			continue
-		}
+	for name, factory := range factories {
 		if len(filterSet) > 0 && !filterSet[name] {
 			continue
 		}
-		c, err := factories[name](logger.With("collector", name))
+		c, err := factory(logger.With("collector", name))
 		if err != nil {
 			return nil, fmt.Errorf("instantiate %s: %w", name, err)
 		}
@@ -251,8 +196,7 @@ func (g *Group) Close() error {
 	return errors.Join(errs...)
 }
 
-// Names returns the enabled collector names in sorted order. Used for filter
-// validation and landing-page logging.
+// Names returns the collector names in sorted order.
 func (g *Group) Names() []string {
 	out := make([]string, 0, len(g.collectors))
 	for n := range g.collectors {

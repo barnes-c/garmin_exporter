@@ -43,11 +43,6 @@ var (
 		"The target number of CPUs Go will run on (GOMAXPROCS).",
 	).Envar("GOMAXPROCS").Default("1").Int()
 
-	disableDefaultCollectors = kingpin.Flag(
-		"collector.disable-defaults",
-		"Set all collectors to disabled by default.",
-	).Default("false").Bool()
-
 	garminUsername = kingpin.Flag(
 		"garmin.username", "Garmin Connect username.",
 	).Envar("GARMIN_USERNAME").Required().String()
@@ -128,9 +123,6 @@ func main() {
 	logger := promslog.New(promslogConfig)
 	runtime.GOMAXPROCS(*maxProcs)
 
-	if *disableDefaultCollectors {
-		collector.DisableDefaultCollectors()
-	}
 
 	rootCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

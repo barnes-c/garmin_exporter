@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerCollector("gear", DefaultEnabled, newGearCollector,
+	registerCollector("gear", newGearCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Gear != nil }))
 }
 

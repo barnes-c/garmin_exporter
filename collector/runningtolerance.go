@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("runningtolerance", DefaultEnabled, newRunningToleranceCollector,
+	registerCollector("runningtolerance", newRunningToleranceCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.RunningTolerance != nil }))
 }
 

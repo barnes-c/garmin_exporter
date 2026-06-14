@@ -163,7 +163,7 @@ OTLP push and the trace/log pipelines are **disabled by default** — you have t
 | `--otel.otlp.protocol` | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Transport protocol: `grpc` or `http/protobuf`. |
 | `--otel.otlp.interval` | — | `15s` | OTLP metrics push interval. Independent of `--cache.ttl`; each push sends the most recent cached values without triggering a Garmin API call. |
 | `--otel.trace-sample-rate` | — | `1.0` | Trace sample rate (0 < rate ≤ 1). |
-| `--otel.service-name` | `OTEL_SERVICE_NAME` | `garmin-exporter` | `service.name` resource attribute. |
+| `--otel.service-name` | `OTEL_SERVICE_NAME` | `garmin_exporter` | `service.name` resource attribute. |
 | `--web.prometheus` | — | `true` | Serve `/metrics`. Disable for OTLP-push-only deployments. |
 | `--otel.config-file` | `OTEL_CONFIG_FILE` | *(unused)* | Path to an OTel declarative YAML config (otelconf). When set, every other `--otel.*` flag is ignored per the OTel spec. |
 

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("bodycomposition", DefaultEnabled, newBodyCompositionCollector,
+	registerCollector("bodycomposition", newBodyCompositionCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.BodyComposition != nil }))
 }
 

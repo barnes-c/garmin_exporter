@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("lactatethreshold", DefaultEnabled, newLactateThresholdCollector,
+	registerCollector("lactatethreshold", newLactateThresholdCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.LactateThreshold != nil }))
 }
 

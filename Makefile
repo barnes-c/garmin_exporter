@@ -20,11 +20,11 @@ GORELEASER_CONFIG := .github/.goreleaser.yml
 all: fmt vet lint tidy build test
 
 build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter .
+	$(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter .
 
 build-all:
-	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-amd64 .
-	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-arm64 .
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-amd64 .
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-arm64 .
 
 test:
 	$(GO) test -race ./...
@@ -52,4 +52,4 @@ check:
 	goreleaser check --config $(GORELEASER_CONFIG)
 
 clean:
-	rm -rf dist/ garmin-exporter garmin-exporter-*
+	rm -rf dist/ garmin_exporter garmin_exporter-*

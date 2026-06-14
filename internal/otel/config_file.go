@@ -120,7 +120,7 @@ func setupFromYAML(ctx context.Context, logger *slog.Logger, cfg Config) (*Resul
 // not implement pull readers — its pullReader factory returns an error
 // unconditionally, so any such YAML would fail inside NewSDK with an
 // opaque "no valid metric exporter" message. Surfacing a clearer error
-// up-front saves the operator a round of debugging. When garmin-exporter's
+// up-front saves the operator a round of debugging. When garmin_exporter's
 // own Prom reader is enabled (--web.prometheus=true, the default), the
 // /metrics path covers the use case; OTLP-push-only deployments use
 // periodic readers.

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("respiration", DefaultEnabled, newRespirationCollector,
+	registerCollector("respiration", newRespirationCollector,
 		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Respiration != nil }))
 }
 

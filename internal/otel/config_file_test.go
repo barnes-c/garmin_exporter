@@ -17,7 +17,7 @@ func newTestLogger() *slog.Logger {
 
 func TestSetupFromYAML_Happy(t *testing.T) {
 	res, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: true,
 		ConfigFile:        "testdata/valid_minimal.yaml",
 	})
@@ -43,7 +43,7 @@ func TestSetupFromYAML_Happy(t *testing.T) {
 
 func TestSetupFromYAML_PrometheusDisabled(t *testing.T) {
 	res, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: false,
 		ConfigFile:        "testdata/valid_minimal.yaml",
 	})
@@ -59,7 +59,7 @@ func TestSetupFromYAML_PrometheusDisabled(t *testing.T) {
 
 func TestSetupFromYAML_RejectsPullReader(t *testing.T) {
 	_, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: true,
 		ConfigFile:        "testdata/invalid_pull_reader.yaml",
 	})
@@ -76,7 +76,7 @@ func TestSetupFromYAML_RejectsPullReader(t *testing.T) {
 
 func TestSetupFromYAML_MissingFile(t *testing.T) {
 	_, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: true,
 		ConfigFile:        "testdata/does_not_exist.yaml",
 	})
@@ -90,7 +90,7 @@ func TestSetupFromYAML_MissingFile(t *testing.T) {
 
 func TestSetupFromYAML_BadYAML(t *testing.T) {
 	_, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: true,
 		ConfigFile:        "testdata/invalid_syntax.yaml",
 	})
@@ -106,7 +106,7 @@ func TestSetupFromYAML_ClearsConfigFileEnv(t *testing.T) {
 	t.Setenv(envVarConfigFile, "testdata/valid_minimal.yaml")
 
 	res, err := Setup(context.Background(), newTestLogger(), Config{
-		ServiceName:       "garmin-exporter-test",
+		ServiceName:       "garmin_exporter-test",
 		PrometheusEnabled: true,
 		ConfigFile:        "testdata/valid_minimal.yaml",
 	})

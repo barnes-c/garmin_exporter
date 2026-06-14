@@ -9,16 +9,16 @@ LABEL io.prometheus.image.variant="distroless"
 LABEL org.opencontainers.image.authors="Christopher Barnes <github@barnes.biz>"
 LABEL org.opencontainers.image.created=${DATE}
 LABEL org.opencontainers.image.description="OTel-native Prometheus exporter for Garmin Connect"
-LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin-exporter"
+LABEL org.opencontainers.image.documentation="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.revision=${COMMIT}
-LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin-exporter"
+LABEL org.opencontainers.image.source="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.title="Garmin Exporter"
-LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin-exporter"
+LABEL org.opencontainers.image.url="https://github.com/barnes-c/garmin_exporter"
 LABEL org.opencontainers.image.vendor="Christopher Barnes"
 LABEL org.opencontainers.image.version=${VERSION}
 
-COPY $TARGETPLATFORM/garmin-exporter /bin/garmin-exporter
+COPY $TARGETPLATFORM/garmin_exporter /bin/garmin_exporter
 
 EXPOSE      10045
-ENTRYPOINT  [ "/bin/garmin-exporter" ]
+ENTRYPOINT  [ "/bin/garmin_exporter" ]
