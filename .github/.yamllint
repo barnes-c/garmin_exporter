@@ -3,6 +3,7 @@ extends: default
 
 ignore: |
   internal/otel/testdata/invalid_syntax.yaml
+  dist/
 
 rules:
   braces:
