@@ -107,8 +107,8 @@ func setupFromYAML(ctx context.Context, logger *slog.Logger, cfg Config) (*Resul
 	)
 
 	return &Result{
-		Meter:       sdk.MeterProvider().Meter(scopeName),
-		Tracer:      sdk.TracerProvider().Tracer(scopeName),
+		Meter:       sdk.MeterProvider().Meter(ScopeName),
+		Tracer:      sdk.TracerProvider().Tracer(ScopeName),
 		PromHandler: promHandler,
 		Logger:      finalLogger,
 		Shutdown:    sdk.Shutdown,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
 
+	otelpkg "github.com/barnes-c/garmin_exporter/internal/otel"
 	"github.com/barnes-c/garmin_exporter/internal/scrape"
 )
 
@@ -44,7 +45,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 
 		call := func(name string, fn func(ctx context.Context) error) {
 			attempts++
-			childCtx, span := otel.Tracer("garmin_exporter").Start(ctx, "garmin."+name)
+			childCtx, span := otel.Tracer(otelpkg.ScopeName).Start(ctx, "garmin."+name)
 			err := fn(childCtx)
 			endSpan(span, err)
 			if err != nil {
@@ -282,7 +283,7 @@ func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Tim
 
 	sub := func(name string, fn func(ctx context.Context) error) {
 		attempts++
-		childCtx, span := otel.Tracer("garmin_exporter").Start(ctx, "garmin."+name)
+		childCtx, span := otel.Tracer(otelpkg.ScopeName).Start(ctx, "garmin."+name)
 		err := fn(childCtx)
 		endSpan(span, err)
 		if err != nil {

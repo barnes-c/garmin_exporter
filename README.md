@@ -36,7 +36,7 @@ If this project is useful to you, a star on the repo would be appreciated.
 
 Scrape: curl localhost:10045/metrics. Probes: /healthz, /readyz.
 
-**First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--garmin.token-file`, subsequent restarts are unattended.
+**First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--garmin.token-file`, subsequent restarts are unattended. Prefer the `GARMIN_USERNAME` / `GARMIN_PASSWORD` environment variables over their flags. Flag values are visible to other users on the host via `ps`.
 
 ## Configuration
 
@@ -50,8 +50,10 @@ Key flags (full list via `--help`):
 | `--garmin.token-file`     | —                 | `garmin_token.json` | Path to the cached OAuth2 token file                        |
 | `--garmin.username`       | `GARMIN_USERNAME` | *(required)*        | Garmin Connect email address                                |
 | `--log.level`             | —                 | `info`              | Log level (`debug`, `info`, `warn`, `error`)                |
+| `--web.health-path`       | —                 | `/healthz`          | Liveness probe path                                         |
 | `--web.listen-address`    | —                 | `:10045`            | Listen address                                              |
 | `--web.prometheus`        | —                 | `true`              | Disable for OTLP-push-only deployments                      |
+| `--web.ready-path`        | —                 | `/readyz`           | Readiness probe path                                        |
 | `--web.telemetry-path`    | —                 | `/metrics`          | Prometheus endpoint                                         |
 
 ### OTel pipeline
@@ -68,7 +70,7 @@ The OTel pipeline is entirely environment-driven; see the [OTel SDK env var spec
 | `OTEL_METRIC_EXPORT_INTERVAL` | OTLP metric push interval, in ms                                           |
 | `OTEL_TRACES_SAMPLER`         | e.g. `parentbased_traceidratio`                                            |
 | `OTEL_TRACES_SAMPLER_ARG`     | Sampler argument (e.g. `0.1`)                                              |
-| `OTEL_SERVICE_NAME`           | Resource `service.name` (default `garmin_exporter`)                           |
+| `OTEL_SERVICE_NAME`           | Resource `service.name` (default `garmin_exporter`)                        |
 | `OTEL_CONFIG_FILE`            | Path to `otelconf` YAML; overrides all other `OTEL_*` vars                 |
 
 The three exporter selectors default to `none` instead of the spec default `otlp`. The OTel exporters stays silent until OTLP is opted in.

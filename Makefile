@@ -1,5 +1,5 @@
 GO        ?= go
-VERSION   := $(shell cat Version)
+VERSION   := $(shell cat VERSION)
 COMMIT    := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BRANCH    := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 DATE      := $(shell date -u +%Y%m%d-%H:%M:%S)

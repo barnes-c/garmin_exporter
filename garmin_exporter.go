@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"os/user"
@@ -66,6 +65,15 @@ var (
 		"Serve the Prometheus scrape endpoint at --web.telemetry-path. Disable for OTLP-push-only deployments.",
 	).Default("true").Bool()
 
+	healthPath = kingpin.Flag(
+		"web.health-path",
+		"Path under which to expose the liveness probe.",
+	).Default("/healthz").String()
+	readyPath = kingpin.Flag(
+		"web.ready-path",
+		"Path under which to expose the readiness probe.",
+	).Default("/readyz").String()
+
 	toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
 
 	logLevel = kingpin.Flag("log.level", "Log level (debug, info, warn, error).").
@@ -83,13 +91,13 @@ spec default is "otlp"), so the exporter is silent until OTLP is opted in.`
 // buildHandler wires the HTTP routes served by the exporter: the OTel
 // Prometheus handler at metricsPath, healthz/readyz probes, and the
 // exporter-toolkit landing page at "/" (unless metricsPath itself is "/").
-func buildHandler(res *otel.Result, metricsPath string, readyChecks map[string]probes.Checker) (http.Handler, error) {
+func buildHandler(res *otel.Result, metricsPath, healthPath, readyPath string, readyChecks map[string]probes.Checker) (http.Handler, error) {
 	mux := http.NewServeMux()
 	if res.PromHandler != nil {
 		mux.Handle(metricsPath, res.PromHandler)
 	}
-	mux.Handle("/healthz", probes.Health())
-	mux.Handle("/readyz", probes.Ready(readyChecks))
+	mux.Handle(healthPath, probes.Health())
+	mux.Handle(readyPath, probes.Ready(readyChecks))
 
 	if metricsPath != "/" {
 		links := []web.LandingLinks{}
@@ -97,8 +105,8 @@ func buildHandler(res *otel.Result, metricsPath string, readyChecks map[string]p
 			links = append(links, web.LandingLinks{Address: metricsPath, Text: "Metrics"})
 		}
 		links = append(links,
-			web.LandingLinks{Address: "/healthz", Text: "Health"},
-			web.LandingLinks{Address: "/readyz", Text: "Readiness"},
+			web.LandingLinks{Address: healthPath, Text: "Health"},
+			web.LandingLinks{Address: readyPath, Text: "Readiness"},
 		)
 		landing, err := web.NewLandingPage(web.LandingConfig{
 			Name:        "Garmin Exporter",
@@ -215,7 +223,7 @@ func main() {
 
 	readyChecks := buildReadyChecks(garminClient, garminScraper, *cacheTTL)
 
-	mux, err := buildHandler(otelResult, *metricsPath, readyChecks)
+	mux, err := buildHandler(otelResult, *metricsPath, *healthPath, *readyPath, readyChecks)
 	if err != nil {
 		logger.Error("Failed to build HTTP handler", "err", err)
 		os.Exit(1)

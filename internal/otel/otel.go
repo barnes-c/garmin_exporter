@@ -23,10 +23,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// scopeName is the instrumentation scope reported on Meter and Tracer.
+// ScopeName is the instrumentation scope reported on Meter and Tracer.
 // Use the module path so the OTel `instrumentation.scope.name` attribute
 // reflects this codebase.
-const scopeName = "github.com/barnes-c/garmin_exporter"
+const ScopeName = "github.com/barnes-c/garmin_exporter"
+
 
 // Config configures the OTel pipeline.
 //
@@ -116,7 +117,7 @@ func Setup(ctx context.Context, logger *slog.Logger, cfg Config) (*Result, error
 	}
 	otel.SetMeterProvider(mp)
 	shutdowns = append(shutdowns, mp.Shutdown)
-	meter := otel.Meter(scopeName)
+	meter := otel.Meter(ScopeName)
 
 	// Auto-collect Go runtime metrics (goroutines, GC, heap)
 	if err := otelruntime.Start(otelruntime.WithMeterProvider(mp)); err != nil {
@@ -128,7 +129,7 @@ func Setup(ctx context.Context, logger *slog.Logger, cfg Config) (*Result, error
 	// traceparent / baggage headers. autoprop honours OTEL_PROPAGATORS
 	otel.SetTextMapPropagator(autoprop.NewTextMapPropagator())
 
-	tracer := otel.Tracer(scopeName)
+	tracer := otel.Tracer(ScopeName)
 	if cfg.TracesExporter != "none" {
 		tp, err := buildTracerProvider(ctx, res, cfg)
 		if err != nil {
@@ -136,7 +137,7 @@ func Setup(ctx context.Context, logger *slog.Logger, cfg Config) (*Result, error
 		}
 		otel.SetTracerProvider(tp)
 		shutdowns = append(shutdowns, tp.Shutdown)
-		tracer = tp.Tracer(scopeName)
+		tracer = tp.Tracer(ScopeName)
 	}
 
 	finalLogger := logger
