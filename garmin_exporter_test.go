@@ -14,16 +14,16 @@ import (
 )
 
 var (
-	binary = filepath.Join(os.Getenv("GOPATH"), "bin/garmin-exporter")
+	binary = filepath.Join(os.Getenv("GOPATH"), "bin/garmin_exporter")
 )
 
 const (
-	address = "localhost:110043"
+	address = "localhost:10043"
 )
 
 func TestFileDescriptorLeak(t *testing.T) {
 	if _, err := os.Stat(binary); err != nil {
-		t.Skipf("garmin-exporter binary not available, try to run `make build` first: %s", err)
+		t.Skipf("garmin_exporter binary not available, try to run `make build` first: %s", err)
 	}
 	fs, err := procfs.NewDefaultFS()
 	if err != nil {
@@ -33,7 +33,12 @@ func TestFileDescriptorLeak(t *testing.T) {
 		t.Errorf("unable to read process stats: %s", err)
 	}
 
-	exporter := exec.Command(binary, "--web.listen-address", address, "--cache.ttl=24h")
+	exporter := exec.Command(binary,
+		"--web.listen-address", address,
+		"--cache.ttl=24h",
+		"--garmin.username=test",
+		"--garmin.password=test",
+	)
 	test := func(pid int) error {
 		if err := queryExporter(address); err != nil {
 			return err

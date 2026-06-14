@@ -37,8 +37,8 @@ func TestReady_NoChecks_ReturnsOK(t *testing.T) {
 
 func TestReady_AllChecksPass(t *testing.T) {
 	checks := map[string]Checker{
-		"auth":   ok(),
-		"scrape": ok(),
+		"ovsdb":   ok(),
+		"unixctl": ok(),
 	}
 	rec := httptest.NewRecorder()
 	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -46,7 +46,7 @@ func TestReady_AllChecksPass(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	want := "auth: ok\nscrape: ok\n"
+	want := "ovsdb: ok\nunixctl: ok\n"
 	if got := rec.Body.String(); got != want {
 		t.Errorf("body = %q, want %q", got, want)
 	}
@@ -54,8 +54,8 @@ func TestReady_AllChecksPass(t *testing.T) {
 
 func TestReady_OneCheckFails_Returns503(t *testing.T) {
 	checks := map[string]Checker{
-		"auth":   ok(),
-		"scrape": fail("last scrape failed"),
+		"ovsdb":   ok(),
+		"unixctl": fail("scrape stale (12s > 9s)"),
 	}
 	rec := httptest.NewRecorder()
 	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -64,18 +64,18 @@ func TestReady_OneCheckFails_Returns503(t *testing.T) {
 		t.Errorf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "scrape: last scrape failed") {
+	if !strings.Contains(body, "unixctl: scrape stale") {
 		t.Errorf("body missing failure detail: %q", body)
 	}
-	if !strings.Contains(body, "auth: ok") {
+	if !strings.Contains(body, "ovsdb: ok") {
 		t.Errorf("body should still list passing checks: %q", body)
 	}
 }
 
 func TestReady_AllChecksFail(t *testing.T) {
 	checks := map[string]Checker{
-		"auth":   fail("last login failed"),
-		"scrape": fail("last scrape failed"),
+		"ovsdb":   fail("not connected"),
+		"unixctl": fail("no socket"),
 	}
 	rec := httptest.NewRecorder()
 	Ready(checks).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
@@ -103,6 +103,10 @@ func TestReady_OutputIsSortedByName(t *testing.T) {
 	}
 }
 
+// TestReady_PassesRequestContextToChecks proves the handler hands the
+// request's own context to each Checker (not background) so HTTP timeouts
+// and client cancellation propagate. Round-tripping a context value is
+// the cleanest way to assert this without involving an actual TCP server.
 func TestReady_PassesRequestContextToChecks(t *testing.T) {
 	type ctxKey struct{}
 	seen := make(chan any, 1)

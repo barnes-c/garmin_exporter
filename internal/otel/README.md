@@ -1,0 +1,5 @@
+# OTel
+
+Package `otel` wires the OpenTelemetry SDK pipelines (metrics, traces, logs) used by ovs-exporter. Native OTel instruments are the source of truth; by default `/metrics` is served via the OTel SDK's Prometheus exporter (toggle with `--web.prometheus`, default on), and OTLP push is an optional Reader on the same MeterProvider.
+
+[OTel SDK env-var spec](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/)
