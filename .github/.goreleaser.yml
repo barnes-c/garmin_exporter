@@ -108,8 +108,8 @@ release:
     ### Binaries
     Linux `amd64` / `arm64` tarballs are attached below (`garmin_exporter_{{ .Version }}_linux_*.tar.gz`).
 
-    ### Source & SBOMs
-    Source tarball (`garmin_exporter_{{ .Version }}_source.tar.gz`) and SPDX SBOMs (`*.sbom.json`) are attached for supply-chain verification.
+    ### SBOMs
+    SPDX SBOMs (`*.sbom.json`) are attached for supply-chain verification.
   footer: |
     ## Verification
 
