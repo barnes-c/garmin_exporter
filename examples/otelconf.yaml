@@ -1,0 +1,48 @@
+---
+# OTel SDK file-based configuration consumed by garmin_exporter when
+# OTEL_CONFIG_FILE points at this file. When set, this file overrides every
+# other OTEL_* environment variable.
+#
+# Schema: https://github.com/open-telemetry/opentelemetry-configuration
+#
+# Push metrics, traces, and logs to an OTel Collector over gRPC. /metrics is
+# still served by garmin_exporter unless --web.prometheus=false.
+#
+# This file is what the OTLP example stack mounts into the exporter container;
+# the otel-collector hostname resolves on the compose network.
+
+file_format: "1.0-rc.1"
+
+resource:
+  attributes:
+    - name: service.name
+      value: garmin_exporter
+    - name: deployment.environment
+      value: production
+
+meter_provider:
+  readers:
+    - periodic:
+        interval: 60000
+        exporter:
+          otlp_grpc:
+            endpoint: http://otel-collector:4317
+
+tracer_provider:
+  processors:
+    - batch:
+        exporter:
+          otlp_grpc:
+            endpoint: http://otel-collector:4317
+  sampler:
+    parent_based:
+      root:
+        trace_id_ratio_based:
+          ratio: 0.1
+
+logger_provider:
+  processors:
+    - batch:
+        exporter:
+          otlp_grpc:
+            endpoint: http://otel-collector:4317

@@ -38,6 +38,14 @@ Scrape: curl localhost:10045/metrics. Probes: /healthz, /readyz.
 
 **First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--garmin.token-file`, subsequent restarts are unattended. Prefer the `GARMIN_USERNAME` / `GARMIN_PASSWORD` environment variables over their flags. Flag values are visible to other users on the host via `ps`.
 
+### Examples
+
+Checkout the examples in [`examples/`](./examples):
+
+- [`examples/prometheus`](./examples/prometheus) — classic scrape with Prometheus + Grafana.
+- [`examples/otlp`](./examples/otlp) — OTel-first setup with Prometheus, Tempo, and Loki.
+- [`examples/otelconf.yaml`](./examples/otelconf.yaml) — examplary OTel SDK config consumed via `OTEL_CONFIG_FILE`.
+
 ## Configuration
 
 Key flags (full list via `--help`):

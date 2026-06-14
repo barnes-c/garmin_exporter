@@ -1,0 +1,8 @@
+---
+# This Prometheus is fed via remote-write from the OTel Collector rather than
+# scraping garmin_exporter directly. No scrape jobs are configured.
+global:
+  scrape_interval: 60s
+  evaluation_interval: 60s
+
+scrape_configs: []
