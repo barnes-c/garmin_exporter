@@ -8,6 +8,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
+
 	"github.com/barnes-c/go-garminconnect/garminconnect"
 
 	"github.com/barnes-c/garmin_exporter/internal/scrape"
@@ -18,6 +22,9 @@ type RefreshConfig struct {
 	// Mirrors the previous --garmin.activity-limit flag.
 	ActivityLimit  int
 	OnUnauthorized func()
+	// Tracer is used to create a child span per Garmin API call. Optional;
+	// when nil, no per-endpoint spans are emitted.
+	Tracer trace.Tracer
 }
 
 // NewRefresh returns a scrape.RefreshFunc that calls every Garmin Connect
@@ -26,6 +33,10 @@ type RefreshConfig struct {
 func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.RefreshFunc[Snapshot] {
 	if cfg.ActivityLimit <= 0 {
 		cfg.ActivityLimit = 30
+	}
+	tracer := cfg.Tracer
+	if tracer == nil {
+		tracer = noop.NewTracerProvider().Tracer("garmin-noop")
 	}
 	return func(ctx context.Context) (*Snapshot, error) {
 		gc := client.Get()
@@ -38,9 +49,12 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 		var attempts, failures int
 		var unauthorized bool
 
-		call := func(name string, fn func() error) {
+		call := func(name string, fn func(ctx context.Context) error) {
 			attempts++
-			if err := fn(); err != nil {
+			childCtx, span := tracer.Start(ctx, "garmin."+name)
+			err := fn(childCtx)
+			endSpan(span, err)
+			if err != nil {
 				failures++
 				if errors.Is(err, garminconnect.ErrUnauthorized) {
 					unauthorized = true
@@ -49,21 +63,21 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 		}
 
-		call("UserSummary", func() error {
+		call("UserSummary", func(ctx context.Context) error {
 			v, err := gc.UserSummary(ctx, now)
 			if err == nil {
 				snap.UserSummary = v
 			}
 			return err
 		})
-		call("HeartRates", func() error {
+		call("HeartRates", func(ctx context.Context) error {
 			v, err := gc.HeartRates(ctx, now)
 			if err == nil {
 				snap.HeartRate = v
 			}
 			return err
 		})
-		call("SleepData", func() error {
+		call("SleepData", func(ctx context.Context) error {
 			v, err := gc.SleepData(ctx, now)
 			if err == nil {
 				if snap.Sleep == nil {
@@ -73,7 +87,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
-		call("HRVData", func() error {
+		call("HRVData", func(ctx context.Context) error {
 			v, err := gc.HRVData(ctx, now)
 			if err == nil {
 				if snap.Sleep == nil {
@@ -83,70 +97,70 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
-		call("AllDayStress", func() error {
+		call("AllDayStress", func(ctx context.Context) error {
 			v, err := gc.AllDayStress(ctx, now)
 			if err == nil {
 				snap.Stress = v
 			}
 			return err
 		})
-		call("SpO2", func() error {
+		call("SpO2", func(ctx context.Context) error {
 			v, err := gc.SpO2(ctx, now)
 			if err == nil {
 				snap.SpO2 = v
 			}
 			return err
 		})
-		call("Respiration", func() error {
+		call("Respiration", func(ctx context.Context) error {
 			v, err := gc.Respiration(ctx, now)
 			if err == nil {
 				snap.Respiration = v
 			}
 			return err
 		})
-		call("Hydration", func() error {
+		call("Hydration", func(ctx context.Context) error {
 			v, err := gc.Hydration(ctx, now)
 			if err == nil {
 				snap.Hydration = v
 			}
 			return err
 		})
-		call("IntensityMinutes", func() error {
+		call("IntensityMinutes", func(ctx context.Context) error {
 			v, err := gc.IntensityMinutes(ctx, now)
 			if err == nil {
 				snap.Intensity = v
 			}
 			return err
 		})
-		call("DailyWeighIns", func() error {
+		call("DailyWeighIns", func(ctx context.Context) error {
 			v, err := gc.DailyWeighIns(ctx, now)
 			if err == nil {
 				snap.Body = v
 			}
 			return err
 		})
-		call("BodyComposition", func() error {
+		call("BodyComposition", func(ctx context.Context) error {
 			v, err := gc.BodyComposition(ctx, now.AddDate(0, 0, -30), now)
 			if err == nil {
 				snap.BodyComposition = v
 			}
 			return err
 		})
-		call("BloodPressure", func() error {
+		call("BloodPressure", func(ctx context.Context) error {
 			v, err := gc.BloodPressure(ctx, now.AddDate(0, -1, 0), now)
 			if err == nil {
 				snap.BloodPressure = v
 			}
 			return err
 		})
-		call("Devices", func() error {
+		call("Devices", func(ctx context.Context) error {
 			v, err := gc.Devices(ctx)
 			if err == nil {
 				snap.Devices = v
 			}
 			return err
 		})
-		call("Activities", func() error {
+		call("Activities", func(ctx context.Context) error {
 			activities := &Activities{}
 			recent, err := gc.Activities(ctx, cfg.ActivityLimit)
 			if err != nil {
@@ -154,8 +168,6 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			activities.Recent = recent
 
-			// Lifetime count is a secondary signal — failure here doesn't
-			// invalidate the recent slice. Logged at debug and continues.
 			if total, err := gc.ActivityCount(ctx); err != nil {
 				log.Debug("garmin call failed", "endpoint", "ActivityCount", "err", err)
 			} else {
@@ -164,7 +176,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			snap.Activities = activities
 			return nil
 		})
-		call("Goals+Badges", func() error {
+		call("Goals+Badges", func(ctx context.Context) error {
 			goals, err := gc.Goals(ctx, "active", 0, 100)
 			if err != nil {
 				return err
@@ -178,10 +190,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			snap.Goals = out
 			return nil
 		})
-		call("Gear", func() error {
-			// Gear needs the user profile ID. Skip silently if UserSummary
-			// hasn't loaded yet — gear isn't critical and will populate on
-			// the next tick once UserSummary recovers.
+		call("Gear", func(ctx context.Context) error {
 			if snap.UserSummary == nil {
 				return fmt.Errorf("gear: skipped, UserSummary not available")
 			}
@@ -191,35 +200,35 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
-		call("Golf", func() error {
+		call("Golf", func(ctx context.Context) error {
 			v, err := gc.GolfSummary(ctx, 0, 1)
 			if err == nil {
 				snap.Golf = v
 			}
 			return err
 		})
-		call("LactateThreshold", func() error {
+		call("LactateThreshold", func(ctx context.Context) error {
 			v, err := gc.LactateThreshold(ctx)
 			if err == nil {
 				snap.LactateThreshold = v
 			}
 			return err
 		})
-		call("PersonalRecords", func() error {
+		call("PersonalRecords", func(ctx context.Context) error {
 			v, err := gc.PersonalRecords(ctx)
 			if err == nil {
 				snap.PersonalRecords = v
 			}
 			return err
 		})
-		call("RunningTolerance", func() error {
+		call("RunningTolerance", func(ctx context.Context) error {
 			v, err := gc.RunningTolerance(ctx, now.AddDate(0, 0, -7), now)
 			if err == nil {
 				snap.RunningTolerance = v
 			}
 			return err
 		})
-		call("CyclingFTP", func() error {
+		call("CyclingFTP", func(ctx context.Context) error {
 			raw, err := gc.CyclingFTP(ctx)
 			if err != nil {
 				return err
@@ -229,15 +238,15 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return nil
 		})
-		call("TrainingStatus", func() error {
+		call("TrainingStatus", func(ctx context.Context) error {
 			v, err := gc.TrainingStatus(ctx, now)
 			if err == nil {
 				snap.TrainingStatus = v
 			}
 			return err
 		})
-		call("Training", func() error {
-			t, err := collectTraining(ctx, gc, now, log)
+		call("Training", func(ctx context.Context) error {
+			t, err := collectTraining(ctx, gc, now, log, tracer)
 			if err != nil {
 				return err
 			}
@@ -274,40 +283,43 @@ func parseCyclingFTP(result map[string]json.RawMessage) (float64, bool) {
 // collectTraining fans out the five training-related endpoints. Any individual
 // failure logs at debug and leaves the corresponding field nil; the whole
 // call only fails if every endpoint failed.
-func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Time, log *slog.Logger) (*Training, error) {
+func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Time, log *slog.Logger, tracer trace.Tracer) (*Training, error) {
 	t := &Training{}
 	var attempts, failures int
 
-	sub := func(name string, fn func() error) {
+	sub := func(name string, fn func(ctx context.Context) error) {
 		attempts++
-		if err := fn(); err != nil {
+		childCtx, span := tracer.Start(ctx, "garmin."+name)
+		err := fn(childCtx)
+		endSpan(span, err)
+		if err != nil {
 			failures++
 			log.Debug("garmin call failed", "endpoint", name, "err", err)
 		}
 	}
 
-	sub("TrainingReadiness", func() error {
+	sub("TrainingReadiness", func(ctx context.Context) error {
 		v, err := gc.TrainingReadiness(ctx, now)
 		if err == nil {
 			t.Readiness = v
 		}
 		return err
 	})
-	sub("MaxMetrics", func() error {
+	sub("MaxMetrics", func(ctx context.Context) error {
 		v, err := gc.MaxMetrics(ctx, now.AddDate(0, 0, -30), now)
 		if err == nil {
 			t.Max = v
 		}
 		return err
 	})
-	sub("RacePredictions", func() error {
+	sub("RacePredictions", func(ctx context.Context) error {
 		v, err := gc.RacePredictions(ctx)
 		if err == nil {
 			t.Race = v
 		}
 		return err
 	})
-	sub("EnduranceScore", func() error {
+	sub("EnduranceScore", func(ctx context.Context) error {
 		entries, err := gc.EnduranceScore(ctx, now.AddDate(0, 0, -7), now)
 		if err != nil {
 			return err
@@ -315,7 +327,7 @@ func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Tim
 		t.Endurance = entries
 		return nil
 	})
-	sub("HillScore", func() error {
+	sub("HillScore", func(ctx context.Context) error {
 		entries, err := gc.HillScore(ctx, now.AddDate(0, 0, -7), now)
 		if err != nil {
 			return err
@@ -328,4 +340,12 @@ func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Tim
 		return nil, fmt.Errorf("training: all %d sub-endpoints failed", failures)
 	}
 	return t, nil
+}
+
+func endSpan(span trace.Span, err error) {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.End()
 }

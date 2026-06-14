@@ -183,6 +183,7 @@ func main() {
 		Refresh: garmin.NewRefresh(garminClient, logger.With("component", "garmin"), garmin.RefreshConfig{
 			ActivityLimit:  *garminLimit,
 			OnUnauthorized: authManager.TriggerReauth,
+			Tracer:         otelResult.Tracer,
 		}),
 	})
 	if err != nil {
