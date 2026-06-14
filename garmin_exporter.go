@@ -119,7 +119,7 @@ func buildHandler(res *otel.Result, metricsPath string, readyChecks map[string]p
 func main() {
 	promslogConfig := &promslog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promslogConfig)
-	kingpin.Version(version.Print("garmin-exporter"))
+	kingpin.Version(version.Print("garmin_exporter"))
 	kingpin.CommandLine.UsageWriter(os.Stdout)
 	kingpin.HelpFlag.Short('h')
 	kingpin.CommandLine.Help = otelHelp
@@ -136,7 +136,7 @@ func main() {
 	defer cancel()
 
 	otelResult, err := otel.Setup(rootCtx, logger, otel.Config{
-		ServiceName:       cmp.Or(os.Getenv("OTEL_SERVICE_NAME"), "garmin-exporter"),
+		ServiceName:       cmp.Or(os.Getenv("OTEL_SERVICE_NAME"), "garmin_exporter"),
 		ServiceVersion:    version.Version,
 		MetricsExporter:   cmp.Or(os.Getenv("OTEL_METRICS_EXPORTER"), "none"),
 		TracesExporter:    cmp.Or(os.Getenv("OTEL_TRACES_EXPORTER"), "none"),
@@ -227,7 +227,7 @@ func main() {
 	}
 	logger.Debug("Go MAXPROCS", "procs", runtime.GOMAXPROCS(0))
 
-	server := &http.Server{Handler: otelhttp.NewHandler(mux, "garmin-exporter")}
+	server := &http.Server{Handler: otelhttp.NewHandler(mux, "garmin_exporter")}
 	serveErrCh := make(chan error, 1)
 	go func() {
 		err := web.ListenAndServe(server, toolkitFlags, logger)
