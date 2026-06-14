@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("sleep", newSleepCollector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Sleep != nil }))
+	registerCollector("sleep", newSleepCollector)
 }
 
 type sleepCollector struct {

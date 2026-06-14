@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("spo2", newSpO2Collector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.SpO2 != nil }))
+	registerCollector("spo2", newSpO2Collector)
 }
 
 type spO2Collector struct {

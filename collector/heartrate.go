@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("heartrate", newHeartRateCollector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.HeartRate != nil }))
+	registerCollector("heartrate", newHeartRateCollector)
 }
 
 type heartRateCollector struct {

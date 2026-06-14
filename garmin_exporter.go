@@ -200,8 +200,13 @@ func main() {
 	logger.Info("Collectors registered", "names", group.Names())
 
 	scrapeCtx, scrapeCancel := context.WithCancel(rootCtx)
-	go garminScraper.Run(scrapeCtx)
 	go authManager.Run()
+	go func() {
+		if err := authManager.Ready(rootCtx); err != nil {
+			return
+		}
+		garminScraper.Run(scrapeCtx)
+	}()
 
 	readyChecks := buildReadyChecks(garminClient, garminScraper, *cacheTTL)
 

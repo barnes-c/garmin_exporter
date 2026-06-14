@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("bloodpressure", newBloodPressureCollector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.BloodPressure != nil }))
+	registerCollector("bloodpressure", newBloodPressureCollector)
 }
 
 type bloodPressureCollector struct {

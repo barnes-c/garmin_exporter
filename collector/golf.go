@@ -10,8 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("golf", newGolfCollector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.Golf != nil }))
+	registerCollector("golf", newGolfCollector)
 }
 
 type golfCollector struct {

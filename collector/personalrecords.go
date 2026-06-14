@@ -11,8 +11,7 @@ import (
 )
 
 func init() {
-	registerCollector("personalrecords", newPersonalRecordsCollector,
-		SnapshotHas(func(s *garmin.Snapshot) bool { return s.PersonalRecords != nil }))
+	registerCollector("personalrecords", newPersonalRecordsCollector)
 }
 
 type personalRecordsCollector struct {
