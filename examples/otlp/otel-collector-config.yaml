@@ -17,19 +17,19 @@ processors:
     send_batch_size: 1024
 
 exporters:
-  prometheusremotewrite:
+  prometheus_remote_write:
     endpoint: http://prometheus:9090/api/v1/write
     tls:
       insecure: true
     resource_to_telemetry_conversion:
       enabled: true
 
-  otlphttp/tempo:
+  otlp_http/tempo:
     endpoint: http://tempo:4318
     tls:
       insecure: true
 
-  otlphttp/loki:
+  otlp_http/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
@@ -39,12 +39,12 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [prometheusremotewrite]
+      exporters: [prometheus_remote_write]
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/tempo]
+      exporters: [otlp_http/tempo]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/loki]
+      exporters: [otlp_http/loki]
