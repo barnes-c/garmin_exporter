@@ -15,7 +15,7 @@ LDFLAGS := \
 
 GORELEASER_CONFIG := .github/.goreleaser.yml
 
-.PHONY: all build build-all test vet lint fmt tidy snapshot release check clean
+.PHONY: all build build-all test vet lint fmt tidy snapshot release check clean 
 
 all: fmt vet lint tidy build test
 

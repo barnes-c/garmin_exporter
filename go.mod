@@ -15,7 +15,6 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0
 	go.opentelemetry.io/contrib/otelconf v0.24.0
 	go.opentelemetry.io/contrib/propagators/autoprop v0.69.0
-	go.opentelemetry.io/contrib/samplers/probability/consistent v0.37.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.66.0
 	go.opentelemetry.io/otel/metric v1.44.0
