@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
 	otelslog "go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"

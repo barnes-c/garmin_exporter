@@ -123,7 +123,6 @@ func main() {
 	logger := promslog.New(promslogConfig)
 	runtime.GOMAXPROCS(*maxProcs)
 
-
 	rootCtx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 

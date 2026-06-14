@@ -17,7 +17,7 @@ GORELEASER_CONFIG := .github/.goreleaser.yml
 
 .PHONY: all build build-all test vet lint fmt tidy snapshot release check clean 
 
-all: fmt vet lint tidy build test
+all: fmt vet lint build test
 
 build:
 	$(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter .
