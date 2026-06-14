@@ -3,7 +3,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)](https://github.com/barnes-c/garmin_exporter/releases/latest)
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)](https://goreportcard.com/report/github.com/barnes-c/garmin_exporter)
-[![GHCR](https://img.shields.io/badge/ghcr.io-barnes--c%2Fovs--exporter-blue?logo=github)](https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter)
+[![GHCR](https://img.shields.io/badge/ghcr.io-barnes--c%2Fgarmin__exporter-blue?logo=github)](https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter)
 [![Docker Hub](https://img.shields.io/docker/pulls/barnesbiz/garmin_exporter?logo=docker)](https://hub.docker.com/r/barnesbiz/garmin_exporter)
 
 OTel-native Prometheus exporter for [Garmin Connect](https://connect.garmin.com/).
@@ -68,7 +68,7 @@ The OTel pipeline is entirely environment-driven; see the [OTel SDK env var spec
 | `OTEL_METRIC_EXPORT_INTERVAL` | OTLP metric push interval, in ms                                           |
 | `OTEL_TRACES_SAMPLER`         | e.g. `parentbased_traceidratio`                                            |
 | `OTEL_TRACES_SAMPLER_ARG`     | Sampler argument (e.g. `0.1`)                                              |
-| `OTEL_SERVICE_NAME`           | Resource `service.name` (default `ovs-exporter`)                           |
+| `OTEL_SERVICE_NAME`           | Resource `service.name` (default `garmin_exporter`)                           |
 | `OTEL_CONFIG_FILE`            | Path to `otelconf` YAML; overrides all other `OTEL_*` vars                 |
 
 The three exporter selectors default to `none` instead of the spec default `otlp`. The OTel exporters stays silent until OTLP is opted in.
