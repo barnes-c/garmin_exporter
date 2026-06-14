@@ -9,418 +9,244 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	dto "github.com/prometheus/client_model/go"
 )
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// counterCollector exposes a single gauge with a configurable value.
-type counterCollector struct {
-	name string
-	desc *prometheus.Desc
-	val  atomic.Int64
+type fakeSnap struct {
+	gen int
 }
 
-func newCounterCollector(name string) *counterCollector {
-	return &counterCollector{
-		name: name,
-		desc: prometheus.NewDesc("test_"+name+"_value", "value", nil, nil),
-	}
-}
-
-func (c *counterCollector) Describe(ch chan<- *prometheus.Desc) { ch <- c.desc }
-func (c *counterCollector) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(c.val.Load()))
-}
-
-func TestGatherBeforeFirstRefresh(t *testing.T) {
-	s := New(Config{Logger: discardLogger()})
-	families, err := s.Gatherer().Gather()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(families) != 0 {
-		t.Fatalf("expected empty families, got %d", len(families))
-	}
-}
-
-func TestRefreshAtomicSwap(t *testing.T) {
-	c := newCounterCollector("a")
-	c.val.Store(1)
-	s := New(Config{
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			return map[string]prometheus.Collector{"a": c}, nil
-		},
-		OnScrape: func(bool) {},
-	})
-
-	// Stress: read while refreshing.
-	stop := make(chan struct{})
-	var readErr atomic.Pointer[error]
-	go func() {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				if _, err := s.Gatherer().Gather(); err != nil {
-					readErr.Store(&err)
-					return
-				}
-			}
-		}
-	}()
-
-	ctx := context.Background()
-	for i := int64(1); i <= 50; i++ {
-		c.val.Store(i)
-		_ = s.Refresh(ctx)
-	}
-	close(stop)
-	if errPtr := readErr.Load(); errPtr != nil {
-		t.Fatalf("reader saw error during refresh: %v", *errPtr)
-	}
-	families, _ := s.Gatherer().Gather()
-	if len(families) == 0 {
-		t.Fatal("expected non-empty families after refresh")
-	}
-}
-
-func TestRunWaitsForAuth(t *testing.T) {
-	buildCalls := atomic.Int32{}
-	authReady := make(chan struct{})
-	s := New(Config{
-		TTL:    time.Hour,
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			buildCalls.Add(1)
-			return map[string]prometheus.Collector{}, nil
-		},
-		AuthReady: func(ctx context.Context) error {
-			select {
-			case <-authReady:
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		},
-		OnScrape: func(bool) {},
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan struct{})
-	go func() { s.Run(ctx); close(done) }()
-
-	// Give the loop time to start; assert no build call before auth.
-	time.Sleep(20 * time.Millisecond)
-	if buildCalls.Load() != 0 {
-		t.Fatalf("expected no refresh before auth ready, got %d", buildCalls.Load())
-	}
-
-	close(authReady)
-	// Expect exactly one initial refresh.
-	deadline := time.After(time.Second)
-	for buildCalls.Load() == 0 {
-		select {
-		case <-deadline:
-			t.Fatal("no refresh after auth ready")
-		default:
-			time.Sleep(5 * time.Millisecond)
-		}
-	}
-	cancel()
-	<-done
-	if got := buildCalls.Load(); got != 1 {
-		t.Fatalf("expected exactly 1 build call, got %d", got)
-	}
-}
-
-func TestOverlapProtection(t *testing.T) {
-	release := make(chan struct{})
-	started := make(chan struct{}, 2)
-	buildCalls := atomic.Int32{}
-	s := New(Config{
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			buildCalls.Add(1)
-			started <- struct{}{}
-			<-release
-			return map[string]prometheus.Collector{}, nil
-		},
-		OnScrape: func(bool) {},
-	})
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
-	// Wait for the first refresh to actually be inside BuildCollectors.
-	<-started
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
-	// The second call should return immediately due to semaphore.
-	time.Sleep(20 * time.Millisecond)
-	if got := buildCalls.Load(); got != 1 {
-		t.Fatalf("expected only 1 build during overlap, got %d", got)
-	}
-	close(release)
-	wg.Wait()
-}
-
-func TestOnScrapeWired(t *testing.T) {
-	tests := []struct {
-		name        string
-		collectors  map[string]prometheus.Collector
-		wantSuccess bool
+func TestNew_ValidatesConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  Config[fakeSnap]
 	}{
-		{
-			name:        "no data emits failure",
-			collectors:  map[string]prometheus.Collector{},
-			wantSuccess: false,
-		},
-		{
-			name:        "data emits success",
-			collectors:  map[string]prometheus.Collector{"a": newCounterCollector("a")},
-			wantSuccess: true,
-		},
+		{"missing name", Config[fakeSnap]{Refresh: nullRefresh, Logger: discardLogger()}},
+		{"missing refresh", Config[fakeSnap]{Name: "x", Logger: discardLogger()}},
+		{"missing logger", Config[fakeSnap]{Name: "x", Refresh: nullRefresh}},
 	}
-	for _, tc := range tests {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var got atomic.Bool
-			var called atomic.Bool
-			s := New(Config{
-				Logger:          discardLogger(),
-				BuildCollectors: func() (map[string]prometheus.Collector, error) { return tc.collectors, nil },
-				OnScrape:        func(b bool) { got.Store(b); called.Store(true) },
-			})
-			_ = s.Refresh(context.Background())
-			if !called.Load() {
-				t.Fatal("OnScrape never called")
-			}
-			if got.Load() != tc.wantSuccess {
-				t.Fatalf("OnScrape: want %v, got %v", tc.wantSuccess, got.Load())
+			if _, err := New(tc.cfg); err == nil {
+				t.Error("expected error")
 			}
 		})
 	}
 }
 
-func TestRunCtxCancel(t *testing.T) {
-	s := New(Config{
-		TTL:             time.Hour,
-		Logger:          discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, nil },
-		AuthReady:       func(context.Context) error { return nil },
-		OnScrape:        func(bool) {},
+func nullRefresh(context.Context) (*fakeSnap, error) {
+	return &fakeSnap{}, nil
+}
+
+func TestRefresh_StoresSnapshotOnSuccess(t *testing.T) {
+	var gen atomic.Int64
+	s, err := New(Config[fakeSnap]{
+		Name:   "ovs",
+		Logger: discardLogger(),
+		Refresh: func(context.Context) (*fakeSnap, error) {
+			return &fakeSnap{gen: int(gen.Add(1))}, nil
+		},
 	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if got := s.Snapshot(); got != nil {
+		t.Errorf("Snapshot before first refresh = %+v, want nil", got)
+	}
+
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if got := s.Snapshot(); got == nil || got.gen != 1 {
+		t.Errorf("Snapshot after first refresh = %+v, want {gen:1}", got)
+	}
+	if o := s.Outcome(); !o.Success || o.Err != nil {
+		t.Errorf("Outcome = %+v, want success", o)
+	}
+}
+
+func TestRefresh_PreservesSnapshotOnError(t *testing.T) {
+	var fail atomic.Bool
+	s, err := New(Config[fakeSnap]{
+		Name:   "ovs",
+		Logger: discardLogger(),
+		Refresh: func(context.Context) (*fakeSnap, error) {
+			if fail.Load() {
+				return nil, errors.New("boom")
+			}
+			return &fakeSnap{gen: 42}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatalf("first Refresh: %v", err)
+	}
+	first := s.Snapshot()
+
+	fail.Store(true)
+	if err := s.Refresh(context.Background()); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := s.Snapshot(); got != first {
+		t.Errorf("Snapshot after failed refresh = %+v, want preserved %+v", got, first)
+	}
+	if o := s.Outcome(); o.Success {
+		t.Error("Outcome.Success should be false after failure")
+	}
+}
+
+func TestRun_RefreshesOnInterval(t *testing.T) {
+	var calls atomic.Int64
+	s, err := New(Config[fakeSnap]{
+		Name:     "ovs",
+		Interval: 5 * time.Millisecond,
+		Logger:   discardLogger(),
+		Refresh: func(context.Context) (*fakeSnap, error) {
+			calls.Add(1)
+			return &fakeSnap{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { s.Run(ctx); close(done) }()
-	time.Sleep(20 * time.Millisecond)
+	go func() {
+		s.Run(ctx)
+		close(done)
+	}()
+
+	// Sleep long enough for the initial refresh + at least 2 ticks.
+	time.Sleep(30 * time.Millisecond)
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("Run did not return within 1s of cancel")
+		t.Fatal("Run did not return after ctx cancel")
+	}
+
+	if n := calls.Load(); n < 3 {
+		t.Errorf("calls = %d, want >= 3 (initial + at least 2 ticks)", n)
 	}
 }
 
-func TestFilteredGathererIntersect(t *testing.T) {
-	a := newCounterCollector("a")
-	a.val.Store(11)
-	b := newCounterCollector("b")
-	b.val.Store(22)
-	s := New(Config{
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			return map[string]prometheus.Collector{"alpha": a, "beta": b}, nil
-		},
-		OnScrape: func(bool) {},
+func TestRun_StopsOnContextCancel(t *testing.T) {
+	s, err := New(Config[fakeSnap]{
+		Name:     "ovs",
+		Interval: time.Minute,
+		Logger:   discardLogger(),
+		Refresh:  nullRefresh,
 	})
-	_ = s.Refresh(context.Background())
-
-	families, err := s.FilteredGatherer([]string{"alpha"}).Gather()
 	if err != nil {
-		t.Fatalf("gather: %v", err)
+		t.Fatalf("New: %v", err)
 	}
-	gotNames := map[string]struct{}{}
-	for _, f := range families {
-		gotNames[f.GetName()] = struct{}{}
-	}
-	if _, ok := gotNames["test_a_value"]; !ok {
-		t.Errorf("expected alpha's metric, missing")
-	}
-	if _, ok := gotNames["test_b_value"]; ok {
-		t.Errorf("did not expect beta's metric when filter excludes it")
-	}
-	// Scrape orchestration metrics should be present for alpha only.
-	if _, ok := gotNames["garmin_scrape_collector_success"]; !ok {
-		t.Error("expected scrape_collector_success in filtered output")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		s.Run(ctx)
+		close(done)
+	}()
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after ctx cancel")
 	}
 }
 
-func TestBuildCollectorsError(t *testing.T) {
-	wantErr := errors.New("build failed")
-	var success atomic.Bool
-	success.Store(true)
-	var called atomic.Bool
-	s := New(Config{
-		Logger:          discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, wantErr },
-		OnScrape:        func(b bool) { success.Store(b); called.Store(true) },
-	})
-	_ = s.Refresh(context.Background())
-	if !called.Load() {
-		t.Fatal("OnScrape never called on build error")
-	}
-	if success.Load() {
-		t.Fatal("OnScrape should report failure on build error")
+func TestStale_NoScrapeYet(t *testing.T) {
+	s, _ := New(Config[fakeSnap]{Name: "x", Refresh: nullRefresh, Logger: discardLogger()})
+	if err := s.Stale(time.Minute); err == nil {
+		t.Error("expected error before any scrape attempt")
 	}
 }
 
-func TestRefreshTotalSuccess(t *testing.T) {
-	c := newCounterCollector("a")
-	s := New(Config{
+func TestStale_LastFailed(t *testing.T) {
+	s, _ := New(Config[fakeSnap]{
+		Name:   "x",
 		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			return map[string]prometheus.Collector{"a": c}, nil
+		Refresh: func(context.Context) (*fakeSnap, error) {
+			return nil, errors.New("boom")
 		},
-		OnScrape: func(bool) {},
 	})
 	_ = s.Refresh(context.Background())
-
-	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSuccess)); got != 1 {
-		t.Fatalf("expected 1 success refresh, got %v", got)
-	}
-	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 0 {
-		t.Fatalf("expected 0 failure refreshes, got %v", got)
+	if err := s.Stale(time.Minute); err == nil {
+		t.Error("expected error after failed scrape")
 	}
 }
 
-func TestRefreshTotalFailureOnEmpty(t *testing.T) {
-	s := New(Config{
-		Logger:          discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) { return map[string]prometheus.Collector{}, nil },
-		OnScrape:        func(bool) {},
-	})
-	_ = s.Refresh(context.Background())
-
-	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
-		t.Fatalf("expected 1 failure refresh, got %v", got)
+func TestStale_FreshSucceeds(t *testing.T) {
+	s, _ := New(Config[fakeSnap]{Name: "x", Refresh: nullRefresh, Logger: discardLogger()})
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if err := s.Stale(time.Minute); err != nil {
+		t.Errorf("Stale = %v, want nil for fresh successful scrape", err)
 	}
 }
 
-func TestRefreshTotalFailureOnBuildError(t *testing.T) {
-	s := New(Config{
-		Logger:          discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) { return nil, errors.New("boom") },
-		OnScrape:        func(bool) {},
-	})
-	_ = s.Refresh(context.Background())
-
-	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultFailure)); got != 1 {
-		t.Fatalf("expected 1 failure refresh, got %v", got)
+func TestStale_TooOld(t *testing.T) {
+	s, _ := New(Config[fakeSnap]{Name: "x", Refresh: nullRefresh, Logger: discardLogger()})
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	// Zero maxAge: any positive age qualifies as stale.
+	time.Sleep(2 * time.Millisecond)
+	if err := s.Stale(time.Microsecond); err == nil {
+		t.Error("expected stale error when age exceeds maxAge")
 	}
 }
 
-func TestRefreshTotalSkipped(t *testing.T) {
+func TestSnapshot_ConcurrentReadsDuringRefresh(t *testing.T) {
+	// Refresh is intentionally slow; concurrent Snapshot() calls must not
+	// block on the same mutex (atomic.Pointer guarantees lock-free reads).
+	gate := make(chan struct{})
 	release := make(chan struct{})
-	started := make(chan struct{}, 1)
-	s := New(Config{
+	s, err := New(Config[fakeSnap]{
+		Name:   "ovs",
 		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			started <- struct{}{}
+		Refresh: func(context.Context) (*fakeSnap, error) {
+			close(gate)
 			<-release
-			return map[string]prometheus.Collector{}, nil
+			return &fakeSnap{gen: 1}, nil
 		},
-		OnScrape: func(bool) {},
 	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go func() { defer wg.Done(); _ = s.Refresh(context.Background()) }()
-	<-started
-	// Second concurrent refresh hits the semaphore and is skipped.
-	_ = s.Refresh(context.Background())
-	if got := testutil.ToFloat64(s.refreshTotal.WithLabelValues(refreshResultSkipped)); got != 1 {
-		t.Fatalf("expected 1 skipped refresh, got %v", got)
+	go func() {
+		defer wg.Done()
+		_ = s.Refresh(context.Background())
+	}()
+
+	<-gate
+	// Refresh is parked. Multiple Snapshot() calls must succeed immediately.
+	deadline := time.After(50 * time.Millisecond)
+	readsDone := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			_ = s.Snapshot()
+		}
+		close(readsDone)
+	}()
+	select {
+	case <-readsDone:
+	case <-deadline:
+		t.Fatal("Snapshot() reads blocked during in-flight Refresh")
 	}
 	close(release)
 	wg.Wait()
-}
-
-func TestRefreshDurationObserved(t *testing.T) {
-	c := newCounterCollector("a")
-	s := New(Config{
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			return map[string]prometheus.Collector{"a": c}, nil
-		},
-		OnScrape: func(bool) {},
-	})
-	_ = s.Refresh(context.Background())
-
-	families := gatherScraperFamilies(t, s)
-	hist := findFamily(families, "garmin_cache_refresh_duration_seconds")
-	if hist == nil {
-		t.Fatal("histogram family missing")
-	}
-	if got := hist.GetMetric()[0].GetHistogram().GetSampleCount(); got != 1 {
-		t.Fatalf("expected 1 histogram sample, got %d", got)
-	}
-}
-
-func TestCacheAgeBeforeFirstRefresh(t *testing.T) {
-	s := New(Config{Logger: discardLogger()})
-	families := gatherScraperFamilies(t, s)
-	assertGaugeValue(t, families, "garmin_cache_age_seconds", 0)
-	assertGaugeValue(t, families, "garmin_cache_refresh_in_flight", 0)
-}
-
-func TestCacheAgeAfterRefresh(t *testing.T) {
-	c := newCounterCollector("a")
-	s := New(Config{
-		Logger: discardLogger(),
-		BuildCollectors: func() (map[string]prometheus.Collector, error) {
-			return map[string]prometheus.Collector{"a": c}, nil
-		},
-		OnScrape: func(bool) {},
-	})
-	_ = s.Refresh(context.Background())
-
-	families := gatherScraperFamilies(t, s)
-	age := findFamily(families, "garmin_cache_age_seconds")
-	if age == nil {
-		t.Fatal("cache_age family missing")
-	}
-	val := age.GetMetric()[0].GetGauge().GetValue()
-	if val < 0 || val > 1 {
-		t.Fatalf("expected cache age between 0 and 1 seconds right after refresh, got %v", val)
-	}
-}
-
-func gatherScraperFamilies(t *testing.T, s *Scraper) []*dto.MetricFamily {
-	t.Helper()
-	reg := prometheus.NewRegistry()
-	if err := reg.Register(s); err != nil {
-		t.Fatalf("register scraper: %v", err)
-	}
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather: %v", err)
-	}
-	return families
-}
-
-func findFamily(families []*dto.MetricFamily, name string) *dto.MetricFamily {
-	for _, f := range families {
-		if f.GetName() == name {
-			return f
-		}
-	}
-	return nil
 }

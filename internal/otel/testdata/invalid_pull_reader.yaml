@@ -1,0 +1,15 @@
+---
+file_format: "1.0-rc.1"
+
+resource:
+  attributes:
+    - name: service.name
+      value: garmin-exporter
+
+meter_provider:
+  readers:
+    - pull:
+        exporter:
+          prometheus:
+            host: 0.0.0.0
+            port: 9464

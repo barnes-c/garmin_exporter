@@ -3,87 +3,149 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("body", defaultEnabled, newBodyCollector)
+	registerCollector("body", DefaultEnabled, newBodyCollector)
 }
 
 type bodyCollector struct {
-	weightGrams  *prometheus.Desc
-	bmi          *prometheus.Desc
-	bodyFat      *prometheus.Desc
-	bodyWater    *prometheus.Desc
-	boneMass     *prometheus.Desc
-	muscleMass   *prometheus.Desc
-	visceralFat  *prometheus.Desc
-	metabolicAge *prometheus.Desc
-	logger       *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	weightGrams  metric.Float64ObservableGauge
+	bmi          metric.Float64ObservableGauge
+	bodyFat      metric.Float64ObservableGauge
+	bodyWater    metric.Float64ObservableGauge
+	boneMass     metric.Float64ObservableGauge
+	muscleMass   metric.Float64ObservableGauge
+	visceralFat  metric.Float64ObservableGauge
+	metabolicAge metric.Float64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newBodyCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "body"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &bodyCollector{
-		weightGrams:  d("weight_grams", "Body weight in grams."),
-		bmi:          d("bmi", "Body mass index."),
-		bodyFat:      d("fat_percent", "Body fat percentage."),
-		bodyWater:    d("water_percent", "Body water percentage."),
-		boneMass:     d("bone_mass_grams", "Bone mass in grams."),
-		muscleMass:   d("muscle_mass_grams", "Muscle mass in grams."),
-		visceralFat:  d("visceral_fat", "Visceral fat rating."),
-		metabolicAge: d("metabolic_age_years", "Metabolic age in years."),
-		logger:       logger,
-	}, nil
+func newBodyCollector(log *slog.Logger) (Collector, error) {
+	return &bodyCollector{log: log}, nil
 }
 
-func (c *bodyCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *bodyCollector) Name() string { return "body" }
 
-	resp, err := client.DailyWeighIns(ctx, time.Now())
+func (c *bodyCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.weightGrams, err = meter.Float64ObservableGauge(
+		"garmin.body.weight_grams",
+		metric.WithDescription("Body weight in grams."),
+		metric.WithUnit("g"),
+	)
 	if err != nil {
 		return err
 	}
-	if len(resp.DateWeightList) == 0 {
-		return ErrNoData
+	c.bmi, err = meter.Float64ObservableGauge(
+		"garmin.body.bmi",
+		metric.WithDescription("Body mass index."),
+		metric.WithUnit("{ratio}"),
+	)
+	if err != nil {
+		return err
+	}
+	c.bodyFat, err = meter.Float64ObservableGauge(
+		"garmin.body.fat_percent",
+		metric.WithDescription("Body fat percentage."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+	c.bodyWater, err = meter.Float64ObservableGauge(
+		"garmin.body.water_percent",
+		metric.WithDescription("Body water percentage."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+	c.boneMass, err = meter.Float64ObservableGauge(
+		"garmin.body.bone_mass_grams",
+		metric.WithDescription("Bone mass in grams."),
+		metric.WithUnit("g"),
+	)
+	if err != nil {
+		return err
+	}
+	c.muscleMass, err = meter.Float64ObservableGauge(
+		"garmin.body.muscle_mass_grams",
+		metric.WithDescription("Muscle mass in grams."),
+		metric.WithUnit("g"),
+	)
+	if err != nil {
+		return err
+	}
+	c.visceralFat, err = meter.Float64ObservableGauge(
+		"garmin.body.visceral_fat",
+		metric.WithDescription("Visceral fat rating."),
+		metric.WithUnit("{rating}"),
+	)
+	if err != nil {
+		return err
+	}
+	c.metabolicAge, err = meter.Float64ObservableGauge(
+		"garmin.body.metabolic_age_years",
+		metric.WithDescription("Metabolic age in years."),
+		metric.WithUnit("a"),
+	)
+	if err != nil {
+		return err
 	}
 
-	w := resp.DateWeightList[0]
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.weightGrams, c.bmi, c.bodyFat, c.bodyWater,
+		c.boneMass, c.muscleMass, c.visceralFat, c.metabolicAge)
+	return err
+}
 
+func (c *bodyCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.Body == nil || len(snap.Body.DateWeightList) == 0 {
+		return nil
+	}
+	w := snap.Body.DateWeightList[0]
 	if w.Weight > 0 {
-		g(c.weightGrams, w.Weight)
+		o.ObserveFloat64(c.weightGrams, w.Weight)
 	}
 	if w.Bmi > 0 {
-		g(c.bmi, w.Bmi)
+		o.ObserveFloat64(c.bmi, w.Bmi)
 	}
 	if w.BodyFat > 0 {
-		g(c.bodyFat, w.BodyFat)
+		o.ObserveFloat64(c.bodyFat, w.BodyFat)
 	}
 	if w.BodyWater > 0 {
-		g(c.bodyWater, w.BodyWater)
+		o.ObserveFloat64(c.bodyWater, w.BodyWater)
 	}
 	if w.BoneMass > 0 {
-		g(c.boneMass, w.BoneMass)
+		o.ObserveFloat64(c.boneMass, w.BoneMass)
 	}
 	if w.MuscleMass > 0 {
-		g(c.muscleMass, w.MuscleMass)
+		o.ObserveFloat64(c.muscleMass, w.MuscleMass)
 	}
 	if w.VisceralFat > 0 {
-		g(c.visceralFat, w.VisceralFat)
+		o.ObserveFloat64(c.visceralFat, w.VisceralFat)
 	}
 	if w.MetabolicAge > 0 {
-		g(c.metabolicAge, w.MetabolicAge)
+		o.ObserveFloat64(c.metabolicAge, w.MetabolicAge)
 	}
 	return nil
+}
+
+func (c *bodyCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

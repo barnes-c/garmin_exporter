@@ -5,54 +5,78 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("devices", defaultEnabled, newDevicesCollector)
+	registerCollector("devices", DefaultEnabled, newDevicesCollector)
 }
 
 type devicesCollector struct {
-	info   *prometheus.Desc
-	count  *prometheus.Desc
-	logger *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	info  metric.Int64ObservableGauge
+	count metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newDevicesCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "device"
-	return &devicesCollector{
-		info: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "info"),
-			"Garmin device information (value is always 1).",
-			[]string{"device_id", "name", "type", "status"}, nil),
-		count: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, sub, "count"),
-			"Number of registered Garmin devices.",
-			nil, nil),
-		logger: logger,
-	}, nil
+func newDevicesCollector(log *slog.Logger) (Collector, error) {
+	return &devicesCollector{log: log}, nil
 }
 
-func (c *devicesCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
+func (c *devicesCollector) Name() string { return "devices" }
+
+func (c *devicesCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.info, err = meter.Int64ObservableGauge(
+		"garmin.device.info",
+		metric.WithDescription("Garmin device information (value is always 1)."),
+		metric.WithUnit("{device}"),
+	)
+	if err != nil {
+		return err
 	}
-
-	devices, err := client.Devices(ctx)
+	c.count, err = meter.Int64ObservableGauge(
+		"garmin.device.count",
+		metric.WithDescription("Number of registered Garmin devices."),
+		metric.WithUnit("{device}"),
+	)
 	if err != nil {
 		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.count, prometheus.GaugeValue, float64(len(devices)))
+	c.registration, err = meter.RegisterCallback(c.observe, c.info, c.count)
+	return err
+}
 
+func (c *devicesCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil {
+		return nil
+	}
+	devices := snap.Devices
+	o.ObserveInt64(c.count, int64(len(devices)))
 	for _, d := range devices {
-		ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1,
-			strconv.FormatInt(d.DeviceID, 10),
-			d.ProductDisplayName,
-			d.DisplayName,
-			d.DeviceStatus,
-		)
+		o.ObserveInt64(c.info, 1, metric.WithAttributes(
+			attribute.String("device_id", strconv.FormatInt(d.DeviceID, 10)),
+			attribute.String("name", d.ProductDisplayName),
+			attribute.String("type", d.DisplayName),
+			attribute.String("status", d.DeviceStatus),
+		))
 	}
 	return nil
+}
+
+func (c *devicesCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }

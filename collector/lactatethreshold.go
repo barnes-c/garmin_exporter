@@ -4,56 +4,87 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("lactatethreshold", defaultEnabled, newLactateThresholdCollector)
+	registerCollector("lactatethreshold", DefaultEnabled, newLactateThresholdCollector)
 }
 
 type lactateThresholdCollector struct {
-	runningSpeedMPS  *prometheus.Desc
-	runningHeartRate *prometheus.Desc
-	cyclingHeartRate *prometheus.Desc
-	logger           *slog.Logger
+	log *slog.Logger
+	src garmin.Source
+
+	runningSpeedMPS  metric.Float64ObservableGauge
+	runningHeartRate metric.Int64ObservableGauge
+	cyclingHeartRate metric.Int64ObservableGauge
+
+	registration metric.Registration
 }
 
-func newLactateThresholdCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "lactatethreshold"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &lactateThresholdCollector{
-		runningSpeedMPS:  d("running_speed_mps", "Running lactate threshold speed in meters per second."),
-		runningHeartRate: d("running_heart_rate_bpm", "Running lactate threshold heart rate in bpm."),
-		cyclingHeartRate: d("cycling_heart_rate_bpm", "Cycling lactate threshold heart rate in bpm."),
-		logger:           logger,
-	}, nil
+func newLactateThresholdCollector(log *slog.Logger) (Collector, error) {
+	return &lactateThresholdCollector{log: log}, nil
 }
 
-func (c *lactateThresholdCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *lactateThresholdCollector) Name() string { return "lactatethreshold" }
 
-	entries, err := client.LactateThreshold(ctx)
+func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.runningSpeedMPS, err = meter.Float64ObservableGauge(
+		"garmin.lactatethreshold.running_speed_mps",
+		metric.WithDescription("Running lactate threshold speed in meters per second."),
+		metric.WithUnit("m/s"),
+	)
 	if err != nil {
 		return err
 	}
-	if len(entries) == 0 {
-		return ErrNoData
+	c.runningHeartRate, err = meter.Int64ObservableGauge(
+		"garmin.lactatethreshold.running_heart_rate_bpm",
+		metric.WithDescription("Running lactate threshold heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
+	}
+	c.cyclingHeartRate, err = meter.Int64ObservableGauge(
+		"garmin.lactatethreshold.cycling_heart_rate_bpm",
+		metric.WithDescription("Cycling lactate threshold heart rate in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
 	}
 
-	e := entries[0]
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.runningSpeedMPS, c.runningHeartRate, c.cyclingHeartRate)
+	return err
+}
+
+func (c *lactateThresholdCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || len(snap.LactateThreshold) == 0 {
+		return nil
+	}
+	e := snap.LactateThreshold[0]
 	if e.Speed != nil && *e.Speed > 0 {
-		ch <- prometheus.MustNewConstMetric(c.runningSpeedMPS, prometheus.GaugeValue, *e.Speed)
+		o.ObserveFloat64(c.runningSpeedMPS, *e.Speed)
 	}
 	if e.HearRate != nil && *e.HearRate > 0 {
-		ch <- prometheus.MustNewConstMetric(c.runningHeartRate, prometheus.GaugeValue, float64(*e.HearRate))
+		o.ObserveInt64(c.runningHeartRate, int64(*e.HearRate))
 	}
 	if e.HeartRateCycling != nil && *e.HeartRateCycling > 0 {
-		ch <- prometheus.MustNewConstMetric(c.cyclingHeartRate, prometheus.GaugeValue, float64(*e.HeartRateCycling))
+		o.ObserveInt64(c.cyclingHeartRate, int64(*e.HeartRateCycling))
 	}
 	return nil
+}
+
+func (c *lactateThresholdCollector) Close() error {
+	if c.registration == nil {
+		return nil
+	}
+	return c.registration.Unregister()
 }
