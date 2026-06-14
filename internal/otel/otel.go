@@ -28,7 +28,6 @@ import (
 // reflects this codebase.
 const ScopeName = "github.com/barnes-c/garmin_exporter"
 
-
 // Config configures the OTel pipeline.
 //
 // The Prometheus reader is ALWAYS attached to the
