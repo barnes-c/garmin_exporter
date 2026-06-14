@@ -1,5 +1,5 @@
 GO        ?= go
-VERSION   := $(shell cat Version)
+VERSION   := $(shell cat VERSION)
 COMMIT    := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BRANCH    := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 DATE      := $(shell date -u +%Y%m%d-%H:%M:%S)
@@ -17,14 +17,14 @@ GORELEASER_CONFIG := .github/.goreleaser.yml
 
 .PHONY: all build build-all test vet lint fmt tidy snapshot release check clean 
 
-all: fmt vet lint tidy build test
+all: fmt vet lint build test
 
 build:
-	$(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter .
+	$(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter .
 
 build-all:
-	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-amd64 .
-	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin-exporter-linux-arm64 .
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-amd64 .
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o garmin_exporter-linux-arm64 .
 
 test:
 	$(GO) test -race ./...
@@ -52,4 +52,4 @@ check:
 	goreleaser check --config $(GORELEASER_CONFIG)
 
 clean:
-	rm -rf dist/ garmin-exporter garmin-exporter-*
+	rm -rf dist/ garmin_exporter garmin_exporter-*

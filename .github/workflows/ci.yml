@@ -1,6 +1,16 @@
 ---
 name: CI
 on:
+  push:
+    branches: [main]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "Dockerfile"
+      - "Dockerfile.release"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "**.go"

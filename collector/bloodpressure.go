@@ -3,63 +3,80 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("bloodpressure", defaultEnabled, newBloodPressureCollector)
+	registerCollector("bloodpressure", newBloodPressureCollector)
 }
 
 type bloodPressureCollector struct {
-	systolic  *prometheus.Desc
-	diastolic *prometheus.Desc
-	pulse     *prometheus.Desc
-	logger    *slog.Logger
+	registrar
+	log *slog.Logger
+	src garmin.Source
+
+	systolic  metric.Int64ObservableGauge
+	diastolic metric.Int64ObservableGauge
+	pulse     metric.Int64ObservableGauge
 }
 
-func newBloodPressureCollector(logger *slog.Logger) (Collector, error) {
-	const sub = "blood_pressure"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &bloodPressureCollector{
-		systolic:  d("systolic_mmhg", "Most recent systolic blood pressure in mmHg."),
-		diastolic: d("diastolic_mmhg", "Most recent diastolic blood pressure in mmHg."),
-		pulse:     d("pulse_bpm", "Most recent pulse from blood pressure reading in bpm."),
-		logger:    logger,
-	}, nil
+func newBloodPressureCollector(log *slog.Logger) (Collector, error) {
+	return &bloodPressureCollector{log: log}, nil
 }
 
-func (c *bloodPressureCollector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *bloodPressureCollector) Name() string { return "bloodpressure" }
 
-	now := time.Now()
-	bp, err := client.BloodPressure(ctx, now.AddDate(0, -1, 0), now)
+func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.systolic, err = meter.Int64ObservableGauge(
+		"garmin.blood_pressure.systolic_mmhg",
+		metric.WithDescription("Most recent systolic blood pressure in mmHg."),
+		metric.WithUnit("mm[Hg]"),
+	)
 	if err != nil {
 		return err
 	}
-	if len(bp.Measurements) == 0 {
-		return ErrNoData
+	c.diastolic, err = meter.Int64ObservableGauge(
+		"garmin.blood_pressure.diastolic_mmhg",
+		metric.WithDescription("Most recent diastolic blood pressure in mmHg."),
+		metric.WithUnit("mm[Hg]"),
+	)
+	if err != nil {
+		return err
+	}
+	c.pulse, err = meter.Int64ObservableGauge(
+		"garmin.blood_pressure.pulse_bpm",
+		metric.WithDescription("Most recent pulse from blood pressure reading in bpm."),
+		metric.WithUnit("{beat}/min"),
+	)
+	if err != nil {
+		return err
 	}
 
-	latest := bp.Measurements[len(bp.Measurements)-1]
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.systolic, c.diastolic, c.pulse)
+	return err
+}
 
+func (c *bloodPressureCollector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.BloodPressure == nil || len(snap.BloodPressure.Measurements) == 0 {
+		return nil
+	}
+	latest := snap.BloodPressure.Measurements[len(snap.BloodPressure.Measurements)-1]
 	if latest.Systolic > 0 {
-		g(c.systolic, float64(latest.Systolic))
+		o.ObserveInt64(c.systolic, int64(latest.Systolic))
 	}
 	if latest.Diastolic > 0 {
-		g(c.diastolic, float64(latest.Diastolic))
+		o.ObserveInt64(c.diastolic, int64(latest.Diastolic))
 	}
 	if latest.Pulse > 0 {
-		g(c.pulse, float64(latest.Pulse))
+		o.ObserveInt64(c.pulse, int64(latest.Pulse))
 	}
 	return nil
 }

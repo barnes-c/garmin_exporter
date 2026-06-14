@@ -3,58 +3,80 @@ package collector
 import (
 	"context"
 	"log/slog"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
 func init() {
-	registerCollector("spo2", defaultEnabled, newSpO2Collector)
+	registerCollector("spo2", newSpO2Collector)
 }
 
 type spO2Collector struct {
-	average     *prometheus.Desc
-	lowest      *prometheus.Desc
-	sevenDayAvg *prometheus.Desc
-	logger      *slog.Logger
+	registrar
+	log *slog.Logger
+	src garmin.Source
+
+	average     metric.Float64ObservableGauge
+	lowest      metric.Float64ObservableGauge
+	sevenDayAvg metric.Float64ObservableGauge
 }
 
-func newSpO2Collector(logger *slog.Logger) (Collector, error) {
-	const sub = "spo2"
-	d := func(name, help string) *prometheus.Desc {
-		return prometheus.NewDesc(prometheus.BuildFQName(namespace, sub, name), help, nil, nil)
-	}
-	return &spO2Collector{
-		average:     d("avg_percent", "Average SpO2 percentage for the day."),
-		lowest:      d("lowest_percent", "Lowest SpO2 percentage for the day."),
-		sevenDayAvg: d("seven_day_avg_percent", "7-day average SpO2 percentage."),
-		logger:      logger,
-	}, nil
+func newSpO2Collector(log *slog.Logger) (Collector, error) {
+	return &spO2Collector{log: log}, nil
 }
 
-func (c *spO2Collector) Update(ctx context.Context, ch chan<- prometheus.Metric) error {
-	client := getClient()
-	if client == nil {
-		return ErrNoData
-	}
+func (c *spO2Collector) Name() string { return "spo2" }
 
-	s, err := client.SpO2(ctx, time.Now())
+func (c *spO2Collector) Register(meter metric.Meter, src garmin.Source) error {
+	c.src = src
+
+	var err error
+	c.average, err = meter.Float64ObservableGauge(
+		"garmin.spo2.avg_percent",
+		metric.WithDescription("Average SpO2 percentage for the day."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+	c.lowest, err = meter.Float64ObservableGauge(
+		"garmin.spo2.lowest_percent",
+		metric.WithDescription("Lowest SpO2 percentage for the day."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+	c.sevenDayAvg, err = meter.Float64ObservableGauge(
+		"garmin.spo2.seven_day_avg_percent",
+		metric.WithDescription("7-day average SpO2 percentage."),
+		metric.WithUnit("%"),
+	)
 	if err != nil {
 		return err
 	}
 
-	g := func(desc *prometheus.Desc, v float64) {
-		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v)
-	}
+	c.registration, err = meter.RegisterCallback(c.observe,
+		c.average, c.lowest, c.sevenDayAvg)
+	return err
+}
 
+func (c *spO2Collector) observe(_ context.Context, o metric.Observer) error {
+	snap := c.src.Snapshot()
+	if snap == nil || snap.SpO2 == nil {
+		return nil
+	}
+	s := snap.SpO2
 	if s.AverageSpO2 > 0 {
-		g(c.average, s.AverageSpO2)
+		o.ObserveFloat64(c.average, s.AverageSpO2)
 	}
 	if s.LowestSpO2 > 0 {
-		g(c.lowest, s.LowestSpO2)
+		o.ObserveFloat64(c.lowest, s.LowestSpO2)
 	}
 	if s.LastSevenDaysAvgSpO2 > 0 {
-		g(c.sevenDayAvg, s.LastSevenDaysAvgSpO2)
+		o.ObserveFloat64(c.sevenDayAvg, s.LastSevenDaysAvgSpO2)
 	}
 	return nil
 }

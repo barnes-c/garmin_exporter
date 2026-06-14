@@ -1,5 +1,5 @@
-/garmin-exporter
-/garmin-exporter-*
+/garmin_exporter
+/garmin_exporter-*
 /dist/
 
 *.test

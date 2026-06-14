@@ -1,4 +1,6 @@
-// Package collector includes all individual collectors to gather and export system metrics.
+// Package collector includes all individual Garmin sub-collectors. Each one
+// reads from a garmin.Source snapshot and registers OTel observable
+// instruments on the supplied Meter.
 package collector
 
 import (
@@ -6,215 +8,161 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/barnes-c/go-garminconnect/garminconnect"
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/barnes-c/garmin_exporter/internal/garmin"
 )
 
-// Namespace defines the common namespace to be used by all metrics.
-const namespace = "garmin"
-
-const (
-	defaultEnabled  = true
-	defaultDisabled = false
-)
-
-var (
-	factories              = make(map[string]func(logger *slog.Logger) (Collector, error))
-	initiatedCollectorsMtx = sync.Mutex{}
-	initiatedCollectors    = make(map[string]Collector)
-	collectorState         = make(map[string]*bool)
-	forcedCollectors       = map[string]bool{} // collectors which have been explicitly enabled or disabled
-
-	garminClientMtx sync.RWMutex
-	garminClient    *garminconnect.Client
-	activityLimit   = 30
-)
-
-// SetClient sets the Garmin API client used by all collectors.
-func SetClient(c *garminconnect.Client) {
-	garminClientMtx.Lock()
-	defer garminClientMtx.Unlock()
-
-	garminClient = c
+// Collector is the contract each sub-collector implements. Register installs
+// the collector's instruments on the supplied Meter and wires their observe
+// callback to read from src. Close unregisters everything so a clean
+// shutdown leaves no dangling callbacks on the MeterProvider.
+type Collector interface {
+	Name() string
+	Register(meter metric.Meter, src garmin.Source) error
+	Close() error
 }
 
-func getClient() *garminconnect.Client {
-	garminClientMtx.RLock()
-	defer garminClientMtx.RUnlock()
-
-	return garminClient
+// registrar carries the OTel callback handle that every collector needs to
+// unregister on shutdown. Collectors embed it so they don't each have to
+// reimplement the same Close().
+type registrar struct {
+	registration metric.Registration
 }
 
-// SetActivityLimit sets how many recent activities collectors should fetch.
-func SetActivityLimit(n int) { activityLimit = n }
-
-func registerCollector(collector string, isDefaultEnabled bool, factory func(logger *slog.Logger) (Collector, error)) {
-	var helpDefaultState string
-	if isDefaultEnabled {
-		helpDefaultState = "enabled"
-	} else {
-		helpDefaultState = "disabled"
-	}
-
-	flagName := fmt.Sprintf("collector.%s", collector)
-	flagHelp := fmt.Sprintf("Enable the %s collector (default: %s).", collector, helpDefaultState)
-	defaultValue := fmt.Sprintf("%v", isDefaultEnabled)
-
-	flag := kingpin.Flag(flagName, flagHelp).Default(defaultValue).Action(collectorFlagAction(collector)).Bool()
-	collectorState[collector] = flag
-
-	factories[collector] = factory
-}
-
-// GarminCollector holds the set of enabled Garmin sub-collectors.
-type GarminCollector struct {
-	Collectors map[string]Collector
-	logger     *slog.Logger
-}
-
-// DisableDefaultCollectors sets the collector state to false for all collectors which
-// have not been explicitly enabled on the command line.
-func DisableDefaultCollectors() {
-	for c := range collectorState {
-		if _, ok := forcedCollectors[c]; !ok {
-			*collectorState[c] = false
-		}
-	}
-}
-
-// collectorFlagAction generates a new action function for the given collector
-// to track whether it has been explicitly enabled or disabled from the command line.
-// A new action function is needed for each collector flag because the ParseContext
-// does not contain information about which flag called the action.
-// See: https://github.com/alecthomas/kingpin/issues/294
-func collectorFlagAction(collector string) func(ctx *kingpin.ParseContext) error {
-	return func(ctx *kingpin.ParseContext) error {
-		forcedCollectors[collector] = true
+// Close unregisters the embedded callback. Safe to call before Register.
+func (r *registrar) Close() error {
+	if r.registration == nil {
 		return nil
 	}
+	return r.registration.Unregister()
 }
 
-// NewGarminCollector creates a new GarminCollector.
-func NewGarminCollector(logger *slog.Logger, filters ...string) (*GarminCollector, error) {
-	f := make(map[string]bool)
-	for _, filter := range filters {
-		enabled, exist := collectorState[filter]
-		if !exist {
-			return nil, fmt.Errorf("missing collector: %s", filter)
-		}
-		if !*enabled {
-			return nil, fmt.Errorf("disabled collector: %s", filter)
-		}
-		f[filter] = true
-	}
-	collectors := make(map[string]Collector)
-	initiatedCollectorsMtx.Lock()
-	defer initiatedCollectorsMtx.Unlock()
-	for key, enabled := range collectorState {
-		if !*enabled || (len(f) > 0 && !f[key]) {
-			continue
-		}
-		if collector, ok := initiatedCollectors[key]; ok {
-			collectors[key] = collector
-		} else {
-			collector, err := factories[key](logger.With("collector", key))
-			if err != nil {
-				return nil, err
-			}
-			collectors[key] = collector
-			initiatedCollectors[key] = collector
-		}
-	}
-	return &GarminCollector{Collectors: collectors, logger: logger}, nil
+var (
+	factoriesMu sync.Mutex
+	factories   = make(map[string]func(logger *slog.Logger) (Collector, error))
+)
+
+// registerCollector adds a sub-collector to the registry. Called from init()
+// in each collector file.
+func registerCollector(name string, factory func(logger *slog.Logger) (Collector, error)) {
+	factoriesMu.Lock()
+	defer factoriesMu.Unlock()
+	factories[name] = factory
 }
 
-// Each returned value also implements LastErrorReporter.
-func (n *GarminCollector) PromCollectors(opts ...AdapterOption) map[string]prometheus.Collector {
-	out := make(map[string]prometheus.Collector, len(n.Collectors))
-	for name, c := range n.Collectors {
-		out[name] = newAdapter(c, opts...)
+// Registered returns the names of every collector known to the registry,
+// sorted alphabetically.
+func Registered() []string {
+	factoriesMu.Lock()
+	defer factoriesMu.Unlock()
+	out := make([]string, 0, len(factories))
+	for n := range factories {
+		out = append(out, n)
 	}
+	sort.Strings(out)
 	return out
 }
 
-// AdapterOption configures an individual sub-collector adapter.
-type AdapterOption func(*adapter)
-
-// WithUnauthorizedHandler installs a callback that is invoked when a
-// collector reports an ErrUnauthorized error during Update.
-func WithUnauthorizedHandler(fn func()) AdapterOption {
-	return func(a *adapter) { a.onUnauthorized = fn }
+// Group is the live set of sub-collectors. It owns each instance and is the
+// surface main.go uses to register everything against a Meter and to close
+// cleanly at shutdown.
+type Group struct {
+	log        *slog.Logger
+	collectors map[string]Collector
+	upGauge    metric.Int64ObservableGauge
+	upCallback metric.Registration
 }
 
-// LastErrorReporter exposes the most recent Update error from a Garmin
-// sub-collector wrapped via PromCollectors.
-type LastErrorReporter interface {
-	LastError() error
-}
+// NewGroup instantiates every registered collector. If filters is non-empty,
+// the result is restricted to that named subset; an unknown name is an error.
+func NewGroup(logger *slog.Logger, filters ...string) (*Group, error) {
+	factoriesMu.Lock()
+	defer factoriesMu.Unlock()
 
-type adapter struct {
-	inner          Collector
-	mu             sync.Mutex
-	err            error
-	onUnauthorized func()
-	ctx            context.Context
-}
-
-// SetContext stores ctx so it is available during the next Collect call.
-// Called by the scraper before reg.Gather() to thread request context through.
-func (a *adapter) SetContext(ctx context.Context) {
-	a.ctx = ctx
-}
-
-func newAdapter(c Collector, opts ...AdapterOption) *adapter {
-	a := &adapter{inner: c}
-	for _, opt := range opts {
-		opt(a)
-	}
-	return a
-}
-
-func (a *adapter) Describe(ch chan<- *prometheus.Desc) {
-	prometheus.DescribeByCollect(a, ch)
-}
-
-func (a *adapter) Collect(ch chan<- prometheus.Metric) {
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	err := a.inner.Update(ctx, ch)
-	a.mu.Lock()
-	if err != nil && !IsNoDataError(err) {
-		a.err = err
-		if errors.Is(err, garminconnect.ErrUnauthorized) && a.onUnauthorized != nil {
-			a.onUnauthorized()
+	filterSet := make(map[string]bool, len(filters))
+	for _, f := range filters {
+		if _, ok := factories[f]; !ok {
+			return nil, fmt.Errorf("unknown collector: %s", f)
 		}
-	} else {
-		a.err = nil
+		filterSet[f] = true
 	}
-	a.mu.Unlock()
+
+	out := make(map[string]Collector)
+	for name, factory := range factories {
+		if len(filterSet) > 0 && !filterSet[name] {
+			continue
+		}
+		c, err := factory(logger.With("collector", name))
+		if err != nil {
+			return nil, fmt.Errorf("instantiate %s: %w", name, err)
+		}
+		out[name] = c
+	}
+	return &Group{log: logger, collectors: out}, nil
 }
 
-// LastError returns the most recent non-nil error reported by Update.
-func (a *adapter) LastError() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.err
+// RegisterAll calls Register on every collector in the group, then registers
+// a shared garmin.collector.up gauge that is 1 for every registered collector.
+func (g *Group) RegisterAll(meter metric.Meter, src garmin.Source) error {
+	for name, c := range g.collectors {
+		if err := c.Register(meter, src); err != nil {
+			return fmt.Errorf("register %s: %w", name, err)
+		}
+	}
+
+	if len(g.collectors) == 0 {
+		return nil
+	}
+
+	var err error
+	g.upGauge, err = meter.Int64ObservableGauge(
+		"garmin.collector.up",
+		metric.WithDescription("1 for every registered collector."),
+	)
+	if err != nil {
+		return fmt.Errorf("create garmin.collector.up: %w", err)
+	}
+	g.upCallback, err = meter.RegisterCallback(g.observeUp, g.upGauge)
+	if err != nil {
+		return fmt.Errorf("register garmin.collector.up callback: %w", err)
+	}
+	return nil
 }
 
-// Collector is the interface a collector has to implement.
-type Collector interface {
-	// Get new metrics and expose them via prometheus registry.
-	Update(ctx context.Context, ch chan<- prometheus.Metric) error
+func (g *Group) observeUp(_ context.Context, o metric.Observer) error {
+	for name := range g.collectors {
+		o.ObserveInt64(g.upGauge, 1, metric.WithAttributes(attribute.String("collector", name)))
+	}
+	return nil
 }
 
-// ErrNoData indicates the collector found no data to collect, but had no other error.
-var ErrNoData = errors.New("collector returned no data")
+// Close unregisters the shared up callback and closes every collector.
+func (g *Group) Close() error {
+	var errs []error
+	if g.upCallback != nil {
+		if err := g.upCallback.Unregister(); err != nil {
+			errs = append(errs, fmt.Errorf("unregister garmin.collector.up: %w", err))
+		}
+	}
+	for name, c := range g.collectors {
+		if err := c.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
 
-func IsNoDataError(err error) bool {
-	return err == ErrNoData
+// Names returns the collector names in sorted order.
+func (g *Group) Names() []string {
+	out := make([]string, 0, len(g.collectors))
+	for n := range g.collectors {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
