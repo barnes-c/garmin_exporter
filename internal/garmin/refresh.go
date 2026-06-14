@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
 
@@ -23,9 +22,6 @@ type RefreshConfig struct {
 	// Mirrors the previous --garmin.activity-limit flag.
 	ActivityLimit  int
 	OnUnauthorized func()
-	// Tracer is used to create a child span per Garmin API call. Optional;
-	// when nil, no per-endpoint spans are emitted.
-	Tracer trace.Tracer
 }
 
 // NewRefresh returns a scrape.RefreshFunc that calls every Garmin Connect
@@ -34,10 +30,6 @@ type RefreshConfig struct {
 func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.RefreshFunc[Snapshot] {
 	if cfg.ActivityLimit <= 0 {
 		cfg.ActivityLimit = 30
-	}
-	tracer := cfg.Tracer
-	if tracer == nil {
-		tracer = noop.NewTracerProvider().Tracer("garmin-noop")
 	}
 	return func(ctx context.Context) (*Snapshot, error) {
 		gc := client.Get()

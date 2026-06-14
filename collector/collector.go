@@ -122,7 +122,7 @@ func (g *Group) RegisterAll(meter metric.Meter, src garmin.Source) error {
 	var err error
 	g.upGauge, err = meter.Int64ObservableGauge(
 		"garmin.collector.up",
-		metric.WithDescription("1 if the collector's data dependency is currently available; 0 otherwise."),
+		metric.WithDescription("1 for every registered collector."),
 	)
 	if err != nil {
 		return fmt.Errorf("create garmin.collector.up: %w", err)
