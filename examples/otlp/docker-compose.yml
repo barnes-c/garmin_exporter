@@ -1,0 +1,122 @@
+---
+# garmin_exporter pushing OTLP to an OTel Collector that fans out to
+# Prometheus (metrics), Tempo (traces), and Loki (logs). Grafana is
+# pre-provisioned with all three datasources.
+#
+# The exporter is configured via a single file (../otelconf.yaml) mounted
+# into the container and selected with OTEL_CONFIG_FILE. That file overrides
+# all individual OTEL_* env vars.
+
+services:
+  # One-shot sidecar: the upstream image runs as nonroot (UID 65532), but a
+  # fresh Docker named volume is owned by root, so the exporter cannot write
+  # its OAuth2 token. This service chowns the volume on first start.
+  garmin_data_init:
+    image: busybox:1.37
+    user: "root:root"
+    command: ["chown", "-R", "65532:65532", "/data"]
+    volumes:
+      - garmin_data:/data
+    restart: "no"
+
+  garmin_exporter:
+    image: ghcr.io/barnes-c/garmin_exporter:latest
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    user: "nonroot:nonroot"
+    environment:
+      GARMIN_USERNAME: ${GARMIN_USERNAME}
+      GARMIN_PASSWORD: ${GARMIN_PASSWORD}
+      OTEL_CONFIG_FILE: /etc/garmin_exporter/otelconf.yaml
+    command:
+      - --garmin.token-file=/data/garmin_token.json
+    volumes:
+      - garmin_data:/data
+      - ../otelconf.yaml:/etc/garmin_exporter/otelconf.yaml:ro
+    ports:
+      - "10045:10045"
+    depends_on:
+      garmin_data_init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.154.0
+    restart: unless-stopped
+    command:
+      - --config=/etc/otel-collector-config.yaml
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-remote-write-receiver
+      - --enable-feature=native-histograms
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/tempo.yaml
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"
+
+  loki:
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
+volumes:
+  garmin_data:
+  prometheus_data:
+  tempo_data:
+  loki_data:
+  grafana_data:

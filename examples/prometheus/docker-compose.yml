@@ -1,0 +1,73 @@
+---
+# garmin_exporter + Prometheus + Grafana.
+#
+# Prometheus scrapes /metrics on the exporter every 60s and Grafana is
+# pre-provisioned with Prometheus as a datasource.
+# Build your own dashboard in Grafana.
+
+services:
+  # One-shot sidecar: the upstream image runs as nonroot (UID 65532), but a
+  # fresh Docker named volume is owned by root, so the exporter cannot write
+  # its OAuth2 token. This service chowns the volume on first start.
+  garmin_data_init:
+    image: busybox:1.37
+    user: "root:root"
+    command: ["chown", "-R", "65532:65532", "/data"]
+    volumes:
+      - garmin_data:/data
+    restart: "no"
+
+  garmin_exporter:
+    image: ghcr.io/barnes-c/garmin_exporter:latest
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    user: "nonroot:nonroot"
+    environment:
+      GARMIN_USERNAME: ${GARMIN_USERNAME}
+      GARMIN_PASSWORD: ${GARMIN_PASSWORD}
+    command:
+      - --garmin.token-file=/data/garmin_token.json
+    volumes:
+      - garmin_data:/data
+    ports:
+      - "10045:10045"
+    depends_on:
+      garmin_data_init:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - garmin_exporter
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  garmin_data:
+  prometheus_data:
+  grafana_data:
