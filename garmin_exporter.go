@@ -34,7 +34,7 @@ var (
 	metricsPath = kingpin.Flag(
 		"web.telemetry-path",
 		"Path under which to expose metrics.",
-	).Envar("WEB_TELEMETRY_PATH").Default("/metrics").String()
+	).Envar("GARMIN_WEB_TELEMETRY_PATH").Default("/metrics").String()
 
 	maxProcs = kingpin.Flag(
 		"runtime.gomaxprocs",
@@ -57,26 +57,26 @@ var (
 	cacheTTL = kingpin.Flag(
 		"cache.ttl",
 		"How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.",
-	).Envar("CACHE_TTL").Default("1h").Duration()
+	).Envar("GARMIN_CACHE_TTL").Default("1h").Duration()
 
 	webPrometheus = kingpin.Flag(
 		"web.prometheus",
 		"Serve the Prometheus scrape endpoint at --web.telemetry-path. Disable for OTLP-push-only deployments.",
-	).Envar("WEB_PROMETHEUS").Default("true").Bool()
+	).Envar("GARMIN_WEB_PROMETHEUS").Default("true").Bool()
 
 	healthPath = kingpin.Flag(
 		"web.health-path",
 		"Path under which to expose the liveness probe.",
-	).Envar("WEB_HEALTH_PATH").Default("/healthz").String()
+	).Envar("GARMIN_WEB_HEALTH_PATH").Default("/healthz").String()
 	readyPath = kingpin.Flag(
 		"web.ready-path",
 		"Path under which to expose the readiness probe.",
-	).Envar("WEB_READY_PATH").Default("/readyz").String()
+	).Envar("GARMIN_WEB_READY_PATH").Default("/readyz").String()
 
 	toolkitFlags = addWebFlags(kingpin.CommandLine, ":10045")
 
 	logLevel = kingpin.Flag("log.level", "Log level (debug, info, warn, error).").
-			Envar("LOG_LEVEL").Default("info").String()
+			Envar("GARMIN_LOG_LEVEL").Default("info").String()
 )
 
 func addWebFlags(a *kingpin.Application, defaultAddress string) *web.FlagConfig {
@@ -85,18 +85,18 @@ func addWebFlags(a *kingpin.Application, defaultAddress string) *web.FlagConfig 
 		systemdSocket = a.Flag(
 			"web.systemd-socket",
 			"Use systemd socket activation listeners instead of port listeners (Linux only).",
-		).Envar("WEB_SYSTEMD_SOCKET").Bool()
+		).Envar("GARMIN_WEB_SYSTEMD_SOCKET").Bool()
 	}
 	return &web.FlagConfig{
 		WebListenAddresses: a.Flag(
 			"web.listen-address",
 			"Addresses on which to expose metrics and web interface. Repeatable for multiple addresses. Examples: `:9100` or `[::1]:9100` for http, `vsock://:9100` for vsock",
-		).Envar("WEB_LISTEN_ADDRESS").Default(defaultAddress).HintOptions(defaultAddress).Strings(),
+		).Envar("GARMIN_WEB_LISTEN_ADDRESS").Default(defaultAddress).HintOptions(defaultAddress).Strings(),
 		WebSystemdSocket: systemdSocket,
 		WebConfigFile: a.Flag(
 			"web.config.file",
 			"Path to configuration file that can enable TLS or authentication. See: https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md",
-		).Envar("WEB_CONFIG_FILE").Default("").String(),
+		).Envar("GARMIN_WEB_CONFIG_FILE").Default("").String(),
 	}
 }
 
