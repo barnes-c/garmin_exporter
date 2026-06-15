@@ -36,8 +36,8 @@ func TestFileDescriptorLeak(t *testing.T) {
 	exporter := exec.Command(binary,
 		"--web.listen-address", address,
 		"--cache.ttl=24h",
-		"--garmin.username=test",
-		"--garmin.password=test",
+		"--username=test",
+		"--password=test",
 	)
 	test := func(pid int) error {
 		if err := queryExporter(address); err != nil {

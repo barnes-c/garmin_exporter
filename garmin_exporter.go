@@ -42,16 +42,16 @@ var (
 	).Envar("GOMAXPROCS").Default("1").Int()
 
 	garminUsername = kingpin.Flag(
-		"garmin.username", "Garmin Connect username.",
+		"username", "Garmin Connect username.",
 	).Envar("GARMIN_USERNAME").Required().String()
 	garminPassword = kingpin.Flag(
-		"garmin.password", "Garmin Connect password.",
+		"password", "Garmin Connect password.",
 	).Envar("GARMIN_PASSWORD").Required().String()
 	garminTokenFile = kingpin.Flag(
-		"garmin.token-file", "Path to cached OAuth2 token file.",
+		"token-file", "Path to cached OAuth2 token file.",
 	).Envar("GARMIN_TOKEN_FILE").Default("garmin_token.json").String()
 	garminLimit = kingpin.Flag(
-		"garmin.activity-limit", "Number of recent activities to fetch.",
+		"activity-limit", "Number of recent activities to fetch.",
 	).Envar("GARMIN_ACTIVITY_LIMIT").Default("30").Int()
 
 	cacheTTL = kingpin.Flag(
