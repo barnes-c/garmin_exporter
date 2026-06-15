@@ -8,12 +8,25 @@
 # all individual OTEL_* env vars.
 
 services:
+  # One-shot sidecar: the upstream image runs as nonroot (UID 65532), but a
+  # fresh Docker named volume is owned by root, so the exporter cannot write
+  # its OAuth2 token. This service chowns the volume on first start.
+  garmin_data_init:
+    image: busybox:1.37
+    container_name: garmin_data_init
+    user: "root:root"
+    command: ["chown", "-R", "65532:65532", "/data"]
+    volumes:
+      - garmin_data:/data
+    restart: "no"
+
   garmin_exporter:
     image: ghcr.io/barnes-c/garmin_exporter:latest
     container_name: garmin_exporter
     restart: unless-stopped
     stdin_open: true
     tty: true
+    user: "nonroot:nonroot"
     environment:
       GARMIN_USERNAME: ${GARMIN_USERNAME}
       GARMIN_PASSWORD: ${GARMIN_PASSWORD}
@@ -26,7 +39,10 @@ services:
     ports:
       - "10045:10045"
     depends_on:
-      - otel-collector
+      garmin_data_init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.154.0
