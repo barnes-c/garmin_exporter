@@ -13,7 +13,6 @@ services:
   # its OAuth2 token. This service chowns the volume on first start.
   garmin_data_init:
     image: busybox:1.37
-    container_name: garmin_data_init
     user: "root:root"
     command: ["chown", "-R", "65532:65532", "/data"]
     volumes:
@@ -22,7 +21,6 @@ services:
 
   garmin_exporter:
     image: ghcr.io/barnes-c/garmin_exporter:latest
-    container_name: garmin_exporter
     restart: unless-stopped
     stdin_open: true
     tty: true
@@ -46,7 +44,6 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.154.0
-    container_name: otel-collector
     restart: unless-stopped
     command:
       - --config=/etc/otel-collector-config.yaml
@@ -63,7 +60,6 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.0.1
-    container_name: prometheus
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -79,7 +75,6 @@ services:
 
   tempo:
     image: grafana/tempo:2.6.1
-    container_name: tempo
     restart: unless-stopped
     command:
       - -config.file=/etc/tempo.yaml
@@ -91,7 +86,6 @@ services:
 
   loki:
     image: grafana/loki:3.3.2
-    container_name: loki
     restart: unless-stopped
     command:
       - -config.file=/etc/loki/loki-config.yaml
@@ -103,7 +97,6 @@ services:
 
   grafana:
     image: grafana/grafana:11.4.0
-    container_name: grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: admin
