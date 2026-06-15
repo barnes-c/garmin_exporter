@@ -20,7 +20,7 @@ import (
 
 type RefreshConfig struct {
 	// ActivityLimit caps the number of recent activities fetched per tick.
-	// Mirrors the previous --garmin.activity-limit flag.
+	// Mirrors the --activity-limit flag.
 	ActivityLimit  int
 	OnUnauthorized func()
 }
