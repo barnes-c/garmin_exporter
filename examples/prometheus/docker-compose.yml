@@ -27,7 +27,7 @@ services:
       GARMIN_USERNAME: ${GARMIN_USERNAME}
       GARMIN_PASSWORD: ${GARMIN_PASSWORD}
     command:
-      - --garmin.token-file=/data/garmin_token.json
+      - --token-file=/data/garmin_token.json
     volumes:
       - garmin_data:/data
     ports:

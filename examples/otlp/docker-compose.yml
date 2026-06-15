@@ -30,7 +30,7 @@ services:
       GARMIN_PASSWORD: ${GARMIN_PASSWORD}
       OTEL_CONFIG_FILE: /etc/garmin_exporter/otelconf.yaml
     command:
-      - --garmin.token-file=/data/garmin_token.json
+      - --token-file=/data/garmin_token.json
     volumes:
       - garmin_data:/data
       - ../otelconf.yaml:/etc/garmin_exporter/otelconf.yaml:ro

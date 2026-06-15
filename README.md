@@ -22,7 +22,7 @@ If this project is useful to you, a star on the repo would be appreciated.
     -e GARMIN_USERNAME=you@example.com \
     -e GARMIN_PASSWORD=yourpassword \
     ghcr.io/barnes-c/garmin_exporter:latest \
-    --garmin.token-file=/data/garmin_token.json
+    --token-file=/data/garmin_token.json
 ```
 
 ### Binary
@@ -36,7 +36,7 @@ If this project is useful to you, a star on the repo would be appreciated.
 
 Scrape: curl localhost:10045/metrics. Probes: /healthz, /readyz.
 
-**First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--garmin.token-file`, subsequent restarts are unattended. Prefer the `GARMIN_USERNAME` / `GARMIN_PASSWORD` environment variables over their flags. Flag values are visible to other users on the host via `ps`.
+**First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--token-file`, subsequent restarts are unattended. Prefer the `GARMIN_USERNAME` / `GARMIN_PASSWORD` environment variables over their flags. Flag values are visible to other users on the host via `ps`.
 
 ### Examples
 
@@ -50,19 +50,19 @@ Checkout the examples in [`examples/`](./examples):
 
 Key flags (full list via `--help`):
 
-|           Flag            |         Env var         |       Default       |                           Purpose                           |
-| ------------------------- | ----------------------- | ------------------- | ----------------------------------------------------------- |
-| `--cache.ttl`             | `CACHE_TTL`             | `1h`                | Garmin API refresh interval; independent of scrape interval |
-| `--garmin.activity-limit` | `GARMIN_ACTIVITY_LIMIT` | `30`                | Number of recent activities to fetch per refresh            |
-| `--garmin.password`       | `GARMIN_PASSWORD`       | *(required)*        | Garmin Connect password                                     |
-| `--garmin.token-file`     | `GARMIN_TOKEN_FILE`     | `garmin_token.json` | Path to the cached OAuth2 token file                        |
-| `--garmin.username`       | `GARMIN_USERNAME`       | *(required)*        | Garmin Connect email address                                |
-| `--log.level`             | `LOG_LEVEL`             | `info`              | Log level (`debug`, `info`, `warn`, `error`)                |
-| `--web.health-path`       | `WEB_HEALTH_PATH`       | `/healthz`          | Liveness probe path                                         |
-| `--web.listen-address`    | `WEB_LISTEN_ADDRESS`    | `:10045`            | Listen address                                              |
-| `--web.prometheus`        | `WEB_PROMETHEUS`        | `true`              | Disable for OTLP-push-only deployments                      |
-| `--web.ready-path`        | `WEB_READY_PATH`        | `/readyz`           | Readiness probe path                                        |
-| `--web.telemetry-path`    | `WEB_TELEMETRY_PATH`    | `/metrics`          | Prometheus endpoint                                         |
+|          Flag          |           Env var           |       Default       |                           Purpose                           |
+| ---------------------- | --------------------------- | ------------------- | ----------------------------------------------------------- |
+| `--cache.ttl`          | `GARMIN_CACHE_TTL`          | `1h`                | Garmin API refresh interval; independent of scrape interval |
+| `--activity-limit`     | `GARMIN_ACTIVITY_LIMIT`     | `30`                | Number of recent activities to fetch per refresh            |
+| `--password`           | `GARMIN_PASSWORD`           | *(required)*        | Garmin Connect password                                     |
+| `--token-file`         | `GARMIN_TOKEN_FILE`         | `garmin_token.json` | Path to the cached OAuth2 token file                        |
+| `--username`           | `GARMIN_USERNAME`           | *(required)*        | Garmin Connect email address                                |
+| `--log.level`          | `GARMIN_LOG_LEVEL`          | `info`              | Log level (`debug`, `info`, `warn`, `error`)                |
+| `--web.health-path`    | `GARMIN_WEB_HEALTH_PATH`    | `/healthz`          | Liveness probe path                                         |
+| `--web.listen-address` | `GARMIN_WEB_LISTEN_ADDRESS` | `:10045`            | Listen address                                              |
+| `--web.prometheus`     | `GARMIN_WEB_PROMETHEUS`     | `true`              | Disable for OTLP-push-only deployments                      |
+| `--web.ready-path`     | `GARMIN_WEB_READY_PATH`     | `/readyz`           | Readiness probe path                                        |
+| `--web.telemetry-path` | `GARMIN_WEB_TELEMETRY_PATH` | `/metrics`          | Prometheus endpoint                                         |
 
 ### OTel pipeline
 
