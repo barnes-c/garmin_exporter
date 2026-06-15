@@ -18,6 +18,13 @@
       "automerge": true
     },
     {
+      "description": "Workflow input fields (e.g. golangci-lint-action `version:`, setup-go `go-version:`) cannot carry a digest comment, so pinDigests fails the branch.",
+      "matchDepTypes": [
+        "uses-with"
+      ],
+      "pinDigests": false
+    },
+    {
       "description": "slsa-github-generator reusable workflows must stay tag-pinned; their builder script rejects SHA refs.",
       "matchManagers": [
         "github-actions"
