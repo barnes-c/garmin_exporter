@@ -20,7 +20,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
-	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/barnes-c/garmin_exporter/collector"
@@ -35,7 +34,7 @@ var (
 	metricsPath = kingpin.Flag(
 		"web.telemetry-path",
 		"Path under which to expose metrics.",
-	).Default("/metrics").String()
+	).Envar("WEB_TELEMETRY_PATH").Default("/metrics").String()
 
 	maxProcs = kingpin.Flag(
 		"runtime.gomaxprocs",
@@ -50,35 +49,56 @@ var (
 	).Envar("GARMIN_PASSWORD").Required().String()
 	garminTokenFile = kingpin.Flag(
 		"garmin.token-file", "Path to cached OAuth2 token file.",
-	).Default("garmin_token.json").String()
+	).Envar("GARMIN_TOKEN_FILE").Default("garmin_token.json").String()
 	garminLimit = kingpin.Flag(
 		"garmin.activity-limit", "Number of recent activities to fetch.",
-	).Default("30").Int()
+	).Envar("GARMIN_ACTIVITY_LIMIT").Default("30").Int()
 
 	cacheTTL = kingpin.Flag(
 		"cache.ttl",
 		"How often to refresh data from Garmin Connect. Controls the Garmin API call rate; independent of Prometheus scrape interval.",
-	).Default("1h").Duration()
+	).Envar("CACHE_TTL").Default("1h").Duration()
 
 	webPrometheus = kingpin.Flag(
 		"web.prometheus",
 		"Serve the Prometheus scrape endpoint at --web.telemetry-path. Disable for OTLP-push-only deployments.",
-	).Default("true").Bool()
+	).Envar("WEB_PROMETHEUS").Default("true").Bool()
 
 	healthPath = kingpin.Flag(
 		"web.health-path",
 		"Path under which to expose the liveness probe.",
-	).Default("/healthz").String()
+	).Envar("WEB_HEALTH_PATH").Default("/healthz").String()
 	readyPath = kingpin.Flag(
 		"web.ready-path",
 		"Path under which to expose the readiness probe.",
-	).Default("/readyz").String()
+	).Envar("WEB_READY_PATH").Default("/readyz").String()
 
-	toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":10045")
+	toolkitFlags = addWebFlags(kingpin.CommandLine, ":10045")
 
 	logLevel = kingpin.Flag("log.level", "Log level (debug, info, warn, error).").
-			Default("info").String()
+			Envar("LOG_LEVEL").Default("info").String()
 )
+
+func addWebFlags(a *kingpin.Application, defaultAddress string) *web.FlagConfig {
+	systemdSocket := func() *bool { b := false; return &b }()
+	if runtime.GOOS == "linux" {
+		systemdSocket = a.Flag(
+			"web.systemd-socket",
+			"Use systemd socket activation listeners instead of port listeners (Linux only).",
+		).Envar("WEB_SYSTEMD_SOCKET").Bool()
+	}
+	return &web.FlagConfig{
+		WebListenAddresses: a.Flag(
+			"web.listen-address",
+			"Addresses on which to expose metrics and web interface. Repeatable for multiple addresses. Examples: `:9100` or `[::1]:9100` for http, `vsock://:9100` for vsock",
+		).Envar("WEB_LISTEN_ADDRESS").Default(defaultAddress).HintOptions(defaultAddress).Strings(),
+		WebSystemdSocket: systemdSocket,
+		WebConfigFile: a.Flag(
+			"web.config.file",
+			"Path to configuration file that can enable TLS or authentication. See: https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md",
+		).Envar("WEB_CONFIG_FILE").Default("").String(),
+	}
+}
 
 const otelHelp = `OTel pipeline configuration is environment-driven; see the spec for the
 full list of OTEL_* variables:
