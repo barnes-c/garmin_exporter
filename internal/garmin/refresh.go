@@ -156,7 +156,7 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 		})
 		call("Activities", func(ctx context.Context) error {
 			activities := &Activities{}
-			recent, err := gc.Activities(ctx, cfg.ActivityLimit)
+			recent, err := gc.Activities(ctx, 0, cfg.ActivityLimit)
 			if err != nil {
 				return err
 			}
