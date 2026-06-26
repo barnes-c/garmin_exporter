@@ -244,6 +244,66 @@ func TestCyclingCollector_EmitsFromSnapshot(t *testing.T) {
 	}
 }
 
+func TestFitnessAgeCollector_EmitsFromSnapshot(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{
+		FitnessAge: &garmin.FitnessAge{
+			ChronologicalAge:     40,
+			FitnessAge:           35,
+			AchievableFitnessAge: 32,
+			PreviousFitnessAge:   36,
+			Components: []garmin.FitnessAgeComponent{
+				{Name: "bmi", Value: 23.5, PotentialAge: 34, HasPotential: true},
+				{Name: "rhr", Value: 52},
+			},
+		},
+	}}
+
+	g, err := collector.NewGroup(discardLogger(), "fitnessage")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	metrics := collectMetrics(t, reader)
+	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.years"); got != 35 {
+		t.Errorf("years = %d, want 35", got)
+	}
+	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.chronological_years"); got != 40 {
+		t.Errorf("chronological_years = %d, want 40", got)
+	}
+	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.achievable_years"); got != 32 {
+		t.Errorf("achievable_years = %d, want 32", got)
+	}
+
+	value := findGauge[float64](t, metrics, "garmin.fitness_age.component_value")
+	byComp := make(map[string]float64)
+	for _, dp := range value.DataPoints {
+		for _, a := range dp.Attributes.ToSlice() {
+			if a.Key == "component" {
+				byComp[a.Value.AsString()] = dp.Value
+			}
+		}
+	}
+	if byComp["bmi"] != 23.5 {
+		t.Errorf("component_value{bmi} = %v, want 23.5", byComp["bmi"])
+	}
+	if byComp["rhr"] != 52 {
+		t.Errorf("component_value{rhr} = %v, want 52", byComp["rhr"])
+	}
+
+	// rhr has no potential age, so only bmi should appear.
+	potential := findGauge[float64](t, metrics, "garmin.fitness_age.component_potential_years")
+	if len(potential.DataPoints) != 1 {
+		t.Fatalf("component_potential_years data points = %d, want 1", len(potential.DataPoints))
+	}
+	if potential.DataPoints[0].Value != 34 {
+		t.Errorf("component_potential_years{bmi} = %v, want 34", potential.DataPoints[0].Value)
+	}
+}
+
 func TestClose_NoError(t *testing.T) {
 	meter, _ := setupMeter(t)
 	src := &staticSource{}

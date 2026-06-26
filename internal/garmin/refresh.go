@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -222,6 +223,14 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
+		call("FitnessAge", func(ctx context.Context) error {
+			raw, err := gc.FitnessAge(ctx, now)
+			if err != nil {
+				return err
+			}
+			snap.FitnessAge = parseFitnessAge(raw)
+			return nil
+		})
 		call("CyclingFTP", func(ctx context.Context) error {
 			raw, err := gc.CyclingFTP(ctx)
 			if err != nil {
@@ -272,6 +281,52 @@ func parseCyclingFTP(result map[string]json.RawMessage) (float64, bool) {
 		return 0, false
 	}
 	return bio.Value, true
+}
+
+// parseFitnessAge unpacks the headline ages and component breakdown from
+// Garmin's fitness-age map response. Returns nil when the map is empty.
+func parseFitnessAge(m map[string]json.RawMessage) *FitnessAge {
+	if len(m) == 0 {
+		return nil
+	}
+	fa := &FitnessAge{}
+	intField := func(key string) int {
+		raw, ok := m[key]
+		if !ok {
+			return 0
+		}
+		var v int
+		_ = json.Unmarshal(raw, &v)
+		return v
+	}
+	fa.ChronologicalAge = intField("chronologicalAge")
+	fa.FitnessAge = intField("fitnessAge")
+	fa.AchievableFitnessAge = intField("achievableFitnessAge")
+	fa.PreviousFitnessAge = intField("previousFitnessAge")
+
+	if raw, ok := m["components"]; ok {
+		var comps map[string]struct {
+			Value        float64  `json:"value"`
+			PotentialAge *float64 `json:"potentialAge"`
+		}
+		if json.Unmarshal(raw, &comps) == nil {
+			names := make([]string, 0, len(comps))
+			for name := range comps {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				c := comps[name]
+				comp := FitnessAgeComponent{Name: name, Value: c.Value}
+				if c.PotentialAge != nil {
+					comp.PotentialAge = *c.PotentialAge
+					comp.HasPotential = true
+				}
+				fa.Components = append(fa.Components, comp)
+			}
+		}
+	}
+	return fa
 }
 
 // collectTraining fans out the five training-related endpoints. Any individual
