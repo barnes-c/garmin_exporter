@@ -17,6 +17,7 @@ type Snapshot struct {
 	BodyComposition  *garminconnect.BodyComposition
 	Cycling          *Cycling
 	Devices          []garminconnect.Device
+	FitnessAge       *FitnessAge
 	Gear             []garminconnect.Gear
 	Goals            *Goals
 	Golf             []garminconnect.GolfScorecard
@@ -47,6 +48,27 @@ type Activities struct {
 // have to repeat the unmarshal.
 type Cycling struct {
 	FTPWatts float64
+}
+
+// FitnessAge holds the parsed fitness-age response. The Garmin endpoint
+// returns a raw map; we extract the headline ages and the per-factor
+// component breakdown so the collector doesn't repeat the unmarshal.
+type FitnessAge struct {
+	ChronologicalAge     int
+	FitnessAge           int
+	AchievableFitnessAge int
+	PreviousFitnessAge   int
+	Components           []FitnessAgeComponent
+}
+
+// FitnessAgeComponent is one contributing factor (e.g. bmi, rhr,
+// vigorousMinutesAvg). PotentialAge is only present for some factors, flagged
+// by HasPotential.
+type FitnessAgeComponent struct {
+	Name         string
+	Value        float64
+	PotentialAge float64
+	HasPotential bool
 }
 
 // Goals bundles the two endpoints feeding the goals collector.

@@ -117,6 +117,12 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.cycling.ftp_watts`                                  | `cycling`          |
 | `garmin.device.count`                                       | `devices`          |
 | `garmin.device.info` (`device_id`, `name`, `status`)        | `devices`          |
+| `garmin.fitness_age.years`                                  | `fitnessage`       |
+| `garmin.fitness_age.chronological_years`                    | `fitnessage`       |
+| `garmin.fitness_age.achievable_years`                       | `fitnessage`       |
+| `garmin.fitness_age.previous_years`                         | `fitnessage`       |
+| `garmin.fitness_age.component_value` (`component`)          | `fitnessage`       |
+| `garmin.fitness_age.component_potential_years` (`component`)| `fitnessage`       |
 | `garmin.gear.max_meters` (`gear_name`, `gear_type`)         | `gear`             |
 | `garmin.gear.notified_at_meters` (`gear_name`, `gear_type`) | `gear`             |
 | `garmin.gear.active` (`gear_name`, `gear_type`)             | `gear`             |
