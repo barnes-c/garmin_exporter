@@ -46,9 +46,11 @@ func (c *cyclingCollector) Register(meter metric.Meter, src garmin.Source) error
 
 func (c *cyclingCollector) observe(_ context.Context, o metric.Observer) error {
 	snap := c.src.Snapshot()
-	if snap == nil || snap.Cycling == nil || snap.Cycling.FTPWatts == 0 {
+	if snap == nil || snap.Cycling == nil || snap.Cycling.FunctionalThresholdPower == nil {
 		return nil
 	}
-	o.ObserveFloat64(c.ftp, snap.Cycling.FTPWatts)
+	if ftp := *snap.Cycling.FunctionalThresholdPower; ftp > 0 {
+		o.ObserveFloat64(c.ftp, ftp)
+	}
 	return nil
 }

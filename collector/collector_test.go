@@ -226,8 +226,9 @@ func TestStressCollector_EmitsFromSnapshot(t *testing.T) {
 
 func TestCyclingCollector_EmitsFromSnapshot(t *testing.T) {
 	meter, reader := setupMeter(t)
+	ftp := 285.0
 	src := &staticSource{snap: &garmin.Snapshot{
-		Cycling: &garmin.Cycling{FTPWatts: 285},
+		Cycling: &garminconnect.CyclingFTP{FunctionalThresholdPower: &ftp},
 	}}
 
 	g, err := collector.NewGroup(discardLogger(), "cycling")
@@ -246,15 +247,16 @@ func TestCyclingCollector_EmitsFromSnapshot(t *testing.T) {
 
 func TestFitnessAgeCollector_EmitsFromSnapshot(t *testing.T) {
 	meter, reader := setupMeter(t)
+	bmiAge := 34.0
 	src := &staticSource{snap: &garmin.Snapshot{
-		FitnessAge: &garmin.FitnessAge{
+		FitnessAge: &garminconnect.FitnessAge{
 			ChronologicalAge:     40,
-			FitnessAge:           35,
+			FitnessAge:           35.4,
 			AchievableFitnessAge: 32,
 			PreviousFitnessAge:   36,
-			Components: []garmin.FitnessAgeComponent{
-				{Name: "bmi", Value: 23.5, PotentialAge: 34, HasPotential: true},
-				{Name: "rhr", Value: 52},
+			Components: map[string]garminconnect.FitnessAgeComponent{
+				"bmi": {Value: 23.5, PotentialAge: &bmiAge},
+				"rhr": {Value: 52},
 			},
 		},
 	}}
@@ -268,14 +270,14 @@ func TestFitnessAgeCollector_EmitsFromSnapshot(t *testing.T) {
 	}
 
 	metrics := collectMetrics(t, reader)
-	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.years"); got != 35 {
-		t.Errorf("years = %d, want 35", got)
+	if got := gaugeValue[float64](t, metrics, "garmin.fitness_age.years"); got != 35.4 {
+		t.Errorf("years = %v, want 35.4", got)
 	}
 	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.chronological_years"); got != 40 {
 		t.Errorf("chronological_years = %d, want 40", got)
 	}
-	if got := gaugeValue[int64](t, metrics, "garmin.fitness_age.achievable_years"); got != 32 {
-		t.Errorf("achievable_years = %d, want 32", got)
+	if got := gaugeValue[float64](t, metrics, "garmin.fitness_age.achievable_years"); got != 32 {
+		t.Errorf("achievable_years = %v, want 32", got)
 	}
 
 	value := findGauge[float64](t, metrics, "garmin.fitness_age.component_value")
@@ -311,8 +313,8 @@ func TestGearCollector_EmitsStatsByUUID(t *testing.T) {
 			{UUID: "abc", DisplayName: "Trail Shoes", GearTypeName: "shoes", GearStatusName: "active", MaxMeters: 800000},
 			{UUID: "def", DisplayName: "Road Bike", GearTypeName: "bike", GearStatusName: "active"},
 		},
-		GearStats: map[string]*garmin.GearStat{
-			"abc": {TotalDistanceMeters: 123456, TotalActivities: 42},
+		GearStats: map[string]*garminconnect.GearStats{
+			"abc": {TotalDistance: 123456, TotalActivities: 42},
 			// "def" has no stats; it should emit no stats data points.
 		},
 	}}

@@ -19,10 +19,10 @@ type fitnessAgeCollector struct {
 	log *slog.Logger
 	src garmin.Source
 
-	years          metric.Int64ObservableGauge
+	years          metric.Float64ObservableGauge
 	chronological  metric.Int64ObservableGauge
-	achievable     metric.Int64ObservableGauge
-	previous       metric.Int64ObservableGauge
+	achievable     metric.Float64ObservableGauge
+	previous       metric.Float64ObservableGauge
 	componentValue metric.Float64ObservableGauge
 	componentAge   metric.Float64ObservableGauge
 }
@@ -37,7 +37,7 @@ func (c *fitnessAgeCollector) Register(meter metric.Meter, src garmin.Source) er
 	c.src = src
 
 	var err error
-	if c.years, err = meter.Int64ObservableGauge(
+	if c.years, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.years",
 		metric.WithDescription("Estimated fitness age in years."),
 		metric.WithUnit("a"),
@@ -51,14 +51,14 @@ func (c *fitnessAgeCollector) Register(meter metric.Meter, src garmin.Source) er
 	); err != nil {
 		return err
 	}
-	if c.achievable, err = meter.Int64ObservableGauge(
+	if c.achievable, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.achievable_years",
 		metric.WithDescription("Best achievable fitness age in years."),
 		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}
-	if c.previous, err = meter.Int64ObservableGauge(
+	if c.previous, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.previous_years",
 		metric.WithDescription("Previous fitness age in years."),
 		metric.WithUnit("a"),
@@ -92,22 +92,22 @@ func (c *fitnessAgeCollector) observe(_ context.Context, o metric.Observer) erro
 	}
 	fa := snap.FitnessAge
 	if fa.FitnessAge > 0 {
-		o.ObserveInt64(c.years, int64(fa.FitnessAge))
+		o.ObserveFloat64(c.years, fa.FitnessAge)
 	}
 	if fa.ChronologicalAge > 0 {
 		o.ObserveInt64(c.chronological, int64(fa.ChronologicalAge))
 	}
 	if fa.AchievableFitnessAge > 0 {
-		o.ObserveInt64(c.achievable, int64(fa.AchievableFitnessAge))
+		o.ObserveFloat64(c.achievable, fa.AchievableFitnessAge)
 	}
 	if fa.PreviousFitnessAge > 0 {
-		o.ObserveInt64(c.previous, int64(fa.PreviousFitnessAge))
+		o.ObserveFloat64(c.previous, fa.PreviousFitnessAge)
 	}
-	for _, comp := range fa.Components {
-		attrs := metric.WithAttributes(attribute.String("component", comp.Name))
+	for name, comp := range fa.Components {
+		attrs := metric.WithAttributes(attribute.String("component", name))
 		o.ObserveFloat64(c.componentValue, comp.Value, attrs)
-		if comp.HasPotential {
-			o.ObserveFloat64(c.componentAge, comp.PotentialAge, attrs)
+		if comp.PotentialAge != nil {
+			o.ObserveFloat64(c.componentAge, *comp.PotentialAge, attrs)
 		}
 	}
 	return nil
