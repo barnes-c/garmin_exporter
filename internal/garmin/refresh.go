@@ -2,11 +2,9 @@ package garmin
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -199,16 +197,14 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			if len(snap.Gear) == 0 {
 				return fmt.Errorf("gearstats: skipped, no gear available")
 			}
-			stats := make(map[string]*GearStat, len(snap.Gear))
+			stats := make(map[string]*garminconnect.GearStats, len(snap.Gear))
 			for _, g := range snap.Gear {
-				raw, err := gc.GearStats(ctx, g.UUID)
+				s, err := gc.GearStats(ctx, g.UUID)
 				if err != nil {
 					log.Debug("garmin call failed", "endpoint", "GearStats", "uuid", g.UUID, "err", err)
 					continue
 				}
-				if s := parseGearStat(raw); s != nil {
-					stats[g.UUID] = s
-				}
+				stats[g.UUID] = s
 			}
 			if len(stats) == 0 {
 				return fmt.Errorf("gearstats: no usable stats")
@@ -245,22 +241,18 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			return err
 		})
 		call("FitnessAge", func(ctx context.Context) error {
-			raw, err := gc.FitnessAge(ctx, now)
-			if err != nil {
-				return err
+			v, err := gc.FitnessAge(ctx, now)
+			if err == nil {
+				snap.FitnessAge = v
 			}
-			snap.FitnessAge = parseFitnessAge(raw)
-			return nil
+			return err
 		})
 		call("CyclingFTP", func(ctx context.Context) error {
-			raw, err := gc.CyclingFTP(ctx)
-			if err != nil {
-				return err
+			v, err := gc.CyclingFTP(ctx)
+			if err == nil {
+				snap.Cycling = v
 			}
-			if v, ok := parseCyclingFTP(raw); ok {
-				snap.Cycling = &Cycling{FTPWatts: v}
-			}
-			return nil
+			return err
 		})
 		call("TrainingStatus", func(ctx context.Context) error {
 			v, err := gc.TrainingStatus(ctx, now)
@@ -286,101 +278,6 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 		}
 		return snap, nil
 	}
-}
-
-// parseCyclingFTP unpacks the FTP value from Garmin's CyclingFTP map response.
-// Returns ok=false when the field is missing or zero.
-func parseCyclingFTP(result map[string]json.RawMessage) (float64, bool) {
-	raw, ok := result["mostRecentBiometric"]
-	if !ok {
-		return 0, false
-	}
-	var bio struct {
-		Value float64 `json:"value"`
-	}
-	if err := json.Unmarshal(raw, &bio); err != nil || bio.Value == 0 {
-		return 0, false
-	}
-	return bio.Value, true
-}
-
-// parseFitnessAge unpacks the headline ages and component breakdown from
-// Garmin's fitness-age map response. Returns nil when the map is empty.
-func parseFitnessAge(m map[string]json.RawMessage) *FitnessAge {
-	if len(m) == 0 {
-		return nil
-	}
-	fa := &FitnessAge{}
-	intField := func(key string) int {
-		raw, ok := m[key]
-		if !ok {
-			return 0
-		}
-		var v int
-		_ = json.Unmarshal(raw, &v)
-		return v
-	}
-	fa.ChronologicalAge = intField("chronologicalAge")
-	fa.FitnessAge = intField("fitnessAge")
-	fa.AchievableFitnessAge = intField("achievableFitnessAge")
-	fa.PreviousFitnessAge = intField("previousFitnessAge")
-
-	if raw, ok := m["components"]; ok {
-		var comps map[string]struct {
-			Value        float64  `json:"value"`
-			PotentialAge *float64 `json:"potentialAge"`
-		}
-		if json.Unmarshal(raw, &comps) == nil {
-			names := make([]string, 0, len(comps))
-			for name := range comps {
-				names = append(names, name)
-			}
-			sort.Strings(names)
-			for _, name := range names {
-				c := comps[name]
-				comp := FitnessAgeComponent{Name: name, Value: c.Value}
-				if c.PotentialAge != nil {
-					comp.PotentialAge = *c.PotentialAge
-					comp.HasPotential = true
-				}
-				fa.Components = append(fa.Components, comp)
-			}
-		}
-	}
-	return fa
-}
-
-// parseGearStat unpacks lifetime distance and activity count from Garmin's
-// gear-stats map response. Returns nil when neither field is present.
-func parseGearStat(m map[string]json.RawMessage) *GearStat {
-	if len(m) == 0 {
-		return nil
-	}
-	floatField := func(key string) (float64, bool) {
-		raw, ok := m[key]
-		if !ok {
-			return 0, false
-		}
-		var v float64
-		if json.Unmarshal(raw, &v) != nil {
-			return 0, false
-		}
-		return v, true
-	}
-	s := &GearStat{}
-	var ok bool
-	if v, present := floatField("totalDistance"); present {
-		s.TotalDistanceMeters = v
-		ok = true
-	}
-	if v, present := floatField("totalActivities"); present {
-		s.TotalActivities = int(v)
-		ok = true
-	}
-	if !ok {
-		return nil
-	}
-	return s
 }
 
 // collectTraining fans out the five training-related endpoints. Any individual

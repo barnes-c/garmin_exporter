@@ -105,7 +105,7 @@ func (c *gearCollector) observe(_ context.Context, o metric.Observer) error {
 		o.ObserveInt64(c.active, active, attrs)
 
 		if stat := snap.GearStats[g.UUID]; stat != nil {
-			o.ObserveFloat64(c.totalDistance, stat.TotalDistanceMeters, attrs)
+			o.ObserveFloat64(c.totalDistance, stat.TotalDistance, attrs)
 			o.ObserveInt64(c.totalActivities, int64(stat.TotalActivities), attrs)
 		}
 	}

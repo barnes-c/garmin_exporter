@@ -15,11 +15,11 @@ type Snapshot struct {
 	BloodPressure    *garminconnect.BloodPressureSummary
 	Body             *garminconnect.WeighInsResponse
 	BodyComposition  *garminconnect.BodyComposition
-	Cycling          *Cycling
+	Cycling          *garminconnect.CyclingFTP
 	Devices          []garminconnect.Device
-	FitnessAge       *FitnessAge
+	FitnessAge       *garminconnect.FitnessAge
 	Gear             []garminconnect.Gear
-	GearStats        map[string]*GearStat
+	GearStats        map[string]*garminconnect.GearStats
 	Goals            *Goals
 	Golf             []garminconnect.GolfScorecard
 	HeartRate        *garminconnect.HeartRates
@@ -42,42 +42,6 @@ type Snapshot struct {
 type Activities struct {
 	Lifetime int
 	Recent   []garminconnect.Activity
-}
-
-// Cycling carries the parsed cycling FTP value. The Garmin endpoint returns a
-// map; we extract the only field we currently consume so collectors don't
-// have to repeat the unmarshal.
-type Cycling struct {
-	FTPWatts float64
-}
-
-// FitnessAge holds the parsed fitness-age response. The Garmin endpoint
-// returns a raw map; we extract the headline ages and the per-factor
-// component breakdown so the collector doesn't repeat the unmarshal.
-type FitnessAge struct {
-	ChronologicalAge     int
-	FitnessAge           int
-	AchievableFitnessAge int
-	PreviousFitnessAge   int
-	Components           []FitnessAgeComponent
-}
-
-// FitnessAgeComponent is one contributing factor (e.g. bmi, rhr,
-// vigorousMinutesAvg). PotentialAge is only present for some factors, flagged
-// by HasPotential.
-type FitnessAgeComponent struct {
-	Name         string
-	Value        float64
-	PotentialAge float64
-	HasPotential bool
-}
-
-// GearStat holds the parsed lifetime usage statistics for one piece of gear.
-// The Garmin endpoint returns a raw map keyed per gear UUID; we extract the
-// fields the gear collector consumes.
-type GearStat struct {
-	TotalDistanceMeters float64
-	TotalActivities     int
 }
 
 // Goals bundles the two endpoints feeding the goals collector.
