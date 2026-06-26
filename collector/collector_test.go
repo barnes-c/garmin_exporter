@@ -304,6 +304,47 @@ func TestFitnessAgeCollector_EmitsFromSnapshot(t *testing.T) {
 	}
 }
 
+func TestGearCollector_EmitsStatsByUUID(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{
+		Gear: []garminconnect.Gear{
+			{UUID: "abc", DisplayName: "Trail Shoes", GearTypeName: "shoes", GearStatusName: "active", MaxMeters: 800000},
+			{UUID: "def", DisplayName: "Road Bike", GearTypeName: "bike", GearStatusName: "active"},
+		},
+		GearStats: map[string]*garmin.GearStat{
+			"abc": {TotalDistanceMeters: 123456, TotalActivities: 42},
+			// "def" has no stats; it should emit no stats data points.
+		},
+	}}
+
+	g, err := collector.NewGroup(discardLogger(), "gear")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	metrics := collectMetrics(t, reader)
+
+	dist := findGauge[float64](t, metrics, "garmin.gear.total_distance_meters")
+	if len(dist.DataPoints) != 1 {
+		t.Fatalf("total_distance_meters data points = %d, want 1", len(dist.DataPoints))
+	}
+	if dist.DataPoints[0].Value != 123456 {
+		t.Errorf("total_distance_meters = %v, want 123456", dist.DataPoints[0].Value)
+	}
+	name, _ := dist.DataPoints[0].Attributes.Value("gear_name")
+	if name.AsString() != "Trail Shoes" {
+		t.Errorf("gear_name = %q, want Trail Shoes", name.AsString())
+	}
+
+	acts := findGauge[int64](t, metrics, "garmin.gear.total_activities")
+	if len(acts.DataPoints) != 1 || acts.DataPoints[0].Value != 42 {
+		t.Errorf("total_activities = %v, want one point of 42", acts.DataPoints)
+	}
+}
+
 func TestClose_NoError(t *testing.T) {
 	meter, _ := setupMeter(t)
 	src := &staticSource{}

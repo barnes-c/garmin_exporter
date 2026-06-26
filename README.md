@@ -126,6 +126,8 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.gear.max_meters` (`gear_name`, `gear_type`)         | `gear`             |
 | `garmin.gear.notified_at_meters` (`gear_name`, `gear_type`) | `gear`             |
 | `garmin.gear.active` (`gear_name`, `gear_type`)             | `gear`             |
+| `garmin.gear.total_distance_meters` (`gear_name`, `gear_type`) | `gear`          |
+| `garmin.gear.total_activities` (`gear_name`, `gear_type`)   | `gear`             |
 | `garmin.goals.active_total`                                 | `goals`            |
 | `garmin.goals.earned_badges_total`                          | `goals`            |
 | `garmin.golf.last_round_score`                              | `golf`             |

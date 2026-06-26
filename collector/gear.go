@@ -22,6 +22,8 @@ type gearCollector struct {
 	maxMeters        metric.Int64ObservableGauge
 	notifiedAtMeters metric.Int64ObservableGauge
 	active           metric.Int64ObservableGauge
+	totalDistance    metric.Float64ObservableGauge
+	totalActivities  metric.Int64ObservableGauge
 }
 
 func newGearCollector(log *slog.Logger) (Collector, error) {
@@ -57,9 +59,26 @@ func (c *gearCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if err != nil {
 		return err
 	}
+	c.totalDistance, err = meter.Float64ObservableGauge(
+		"garmin.gear.total_distance_meters",
+		metric.WithDescription("Lifetime distance recorded on the gear in meters."),
+		metric.WithUnit("m"),
+	)
+	if err != nil {
+		return err
+	}
+	c.totalActivities, err = meter.Int64ObservableGauge(
+		"garmin.gear.total_activities",
+		metric.WithDescription("Lifetime number of activities recorded on the gear."),
+		metric.WithUnit("{activity}"),
+	)
+	if err != nil {
+		return err
+	}
 
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.maxMeters, c.notifiedAtMeters, c.active)
+		c.maxMeters, c.notifiedAtMeters, c.active,
+		c.totalDistance, c.totalActivities)
 	return err
 }
 
@@ -84,6 +103,11 @@ func (c *gearCollector) observe(_ context.Context, o metric.Observer) error {
 			active = 1
 		}
 		o.ObserveInt64(c.active, active, attrs)
+
+		if stat := snap.GearStats[g.UUID]; stat != nil {
+			o.ObserveFloat64(c.totalDistance, stat.TotalDistanceMeters, attrs)
+			o.ObserveInt64(c.totalActivities, int64(stat.TotalActivities), attrs)
+		}
 	}
 	return nil
 }

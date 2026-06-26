@@ -19,6 +19,7 @@ type Snapshot struct {
 	Devices          []garminconnect.Device
 	FitnessAge       *FitnessAge
 	Gear             []garminconnect.Gear
+	GearStats        map[string]*GearStat
 	Goals            *Goals
 	Golf             []garminconnect.GolfScorecard
 	HeartRate        *garminconnect.HeartRates
@@ -69,6 +70,14 @@ type FitnessAgeComponent struct {
 	Value        float64
 	PotentialAge float64
 	HasPotential bool
+}
+
+// GearStat holds the parsed lifetime usage statistics for one piece of gear.
+// The Garmin endpoint returns a raw map keyed per gear UUID; we extract the
+// fields the gear collector consumes.
+type GearStat struct {
+	TotalDistanceMeters float64
+	TotalActivities     int
 }
 
 // Goals bundles the two endpoints feeding the goals collector.
