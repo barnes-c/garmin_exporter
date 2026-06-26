@@ -96,3 +96,29 @@ func TestParseFitnessAge_EmptyMap(t *testing.T) {
 		t.Errorf("parseFitnessAge empty = %+v, want nil", fa)
 	}
 }
+
+func TestParseGearStat_PullsFields(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"totalDistance":   123456.7,
+		"totalActivities": 42,
+	})
+	var m map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &m)
+
+	s := parseGearStat(m)
+	if s == nil {
+		t.Fatal("parseGearStat = nil, want value")
+	}
+	if s.TotalDistanceMeters != 123456.7 {
+		t.Errorf("TotalDistanceMeters = %v, want 123456.7", s.TotalDistanceMeters)
+	}
+	if s.TotalActivities != 42 {
+		t.Errorf("TotalActivities = %d, want 42", s.TotalActivities)
+	}
+}
+
+func TestParseGearStat_EmptyMap(t *testing.T) {
+	if s := parseGearStat(map[string]json.RawMessage{}); s != nil {
+		t.Errorf("parseGearStat empty = %+v, want nil", s)
+	}
+}

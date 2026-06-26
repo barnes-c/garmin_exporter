@@ -195,6 +195,27 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
+		call("GearStats", func(ctx context.Context) error {
+			if len(snap.Gear) == 0 {
+				return fmt.Errorf("gearstats: skipped, no gear available")
+			}
+			stats := make(map[string]*GearStat, len(snap.Gear))
+			for _, g := range snap.Gear {
+				raw, err := gc.GearStats(ctx, g.UUID)
+				if err != nil {
+					log.Debug("garmin call failed", "endpoint", "GearStats", "uuid", g.UUID, "err", err)
+					continue
+				}
+				if s := parseGearStat(raw); s != nil {
+					stats[g.UUID] = s
+				}
+			}
+			if len(stats) == 0 {
+				return fmt.Errorf("gearstats: no usable stats")
+			}
+			snap.GearStats = stats
+			return nil
+		})
 		call("Golf", func(ctx context.Context) error {
 			v, err := gc.GolfSummary(ctx, 0, 1)
 			if err == nil {
@@ -327,6 +348,39 @@ func parseFitnessAge(m map[string]json.RawMessage) *FitnessAge {
 		}
 	}
 	return fa
+}
+
+// parseGearStat unpacks lifetime distance and activity count from Garmin's
+// gear-stats map response. Returns nil when neither field is present.
+func parseGearStat(m map[string]json.RawMessage) *GearStat {
+	if len(m) == 0 {
+		return nil
+	}
+	floatField := func(key string) (float64, bool) {
+		raw, ok := m[key]
+		if !ok {
+			return 0, false
+		}
+		var v float64
+		if json.Unmarshal(raw, &v) != nil {
+			return 0, false
+		}
+		return v, true
+	}
+	s := &GearStat{}
+	var ok bool
+	if v, present := floatField("totalDistance"); present {
+		s.TotalDistanceMeters = v
+		ok = true
+	}
+	if v, present := floatField("totalActivities"); present {
+		s.TotalActivities = int(v)
+		ok = true
+	}
+	if !ok {
+		return nil
+	}
+	return s
 }
 
 // collectTraining fans out the five training-related endpoints. Any individual
