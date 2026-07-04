@@ -2,7 +2,6 @@
 
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)](https://github.com/barnes-c/garmin_exporter/releases/latest)
 [![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/barnes-c/garmin_exporter)](https://goreportcard.com/report/github.com/barnes-c/garmin_exporter)
 [![GHCR](https://img.shields.io/badge/ghcr.io-barnes--c%2Fgarmin__exporter-blue?logo=github)](https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter)
 [![Docker Hub](https://img.shields.io/docker/pulls/barnesbiz/garmin_exporter?logo=docker)](https://hub.docker.com/r/barnesbiz/garmin_exporter)
 
