@@ -7,7 +7,7 @@ require (
 	github.com/barnes-c/go-garminconnect v0.4.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common v0.69.0
-	github.com/prometheus/exporter-toolkit v0.16.0
+	github.com/prometheus/exporter-toolkit v0.17.0
 	github.com/prometheus/procfs v0.21.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
 	go.opentelemetry.io/contrib/exporters/autoexport v0.69.0
