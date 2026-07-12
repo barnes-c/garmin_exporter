@@ -13,7 +13,7 @@ type Source interface {
 type Snapshot struct {
 	Activities       *Activities
 	BloodPressure    *garminconnect.BloodPressureSummary
-	Body             *garminconnect.WeighInsResponse
+	Body             *garminconnect.DailyWeighInsResponse
 	BodyComposition  *garminconnect.BodyComposition
 	Cycling          *garminconnect.CyclingFTP
 	Devices          []garminconnect.Device
