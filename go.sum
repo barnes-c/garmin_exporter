@@ -10,6 +10,8 @@ github.com/barnes-c/go-garminconnect v0.4.1 h1:ceb7w8xjU13DhYu2ftgoYr2jrGx8XIKs2
 github.com/barnes-c/go-garminconnect v0.4.1/go.mod h1:rH2iCmVg6+NFs1joH8weUgn6RJyxk8Z6GZP1cdKbiAk=
 github.com/barnes-c/go-garminconnect v0.6.1 h1:JlzUwPU/NaU9umb2IwflC4VXpOkMmP6x3zYG7xQ4+yA=
 github.com/barnes-c/go-garminconnect v0.6.1/go.mod h1:rH2iCmVg6+NFs1joH8weUgn6RJyxk8Z6GZP1cdKbiAk=
+github.com/barnes-c/go-garminconnect v0.7.2 h1:acS6AcGCSAvz9TDEDQ2BHDXu2EaB14SEZwhnfFgcq2s=
+github.com/barnes-c/go-garminconnect v0.7.2/go.mod h1:gKe/iKeRfNt8/OgG5XwVEWDTw2J62HBAwLH5Rapua0o=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
@@ -66,6 +68,8 @@ github.com/prometheus/client_model v0.6.2 h1:oBsgwpGs7iVziMvrGhE53c/GrLUsZdHnqNw
 github.com/prometheus/client_model v0.6.2/go.mod h1:y3m2F6Gdpfy6Ut/GBsUqTWZqCUvMVzSfMLjcu6wAwpE=
 github.com/prometheus/common v0.69.0 h1:OA85nJQS/T/MaYh/Q2CcgDKSGWqNIgrBDvDH85CuiNk=
 github.com/prometheus/common v0.69.0/go.mod h1:ZzL3f6u94qUxh9p+tJTrF+FvBS1XXbbRAZCQkytAL0Y=
+github.com/prometheus/common v0.70.0 h1:bcpru3tWPVnxGnETLgOV5jbp/JRXgYEyv65CuBLAMMI=
+github.com/prometheus/common v0.70.0/go.mod h1:S/SFasQmgGiYH6C81LKCtYa8QACgthGg5zxL2udV7SY=
 github.com/prometheus/exporter-toolkit v0.16.0 h1:xT/j7L2XKF+VJd6B4fpUw6xWabHrSmsUf6mYmFqyu0s=
 github.com/prometheus/exporter-toolkit v0.16.0/go.mod h1:d1EL8Z9674xQe/iWhwP2wDyCEoBPbXVeqDbqAUsgJWY=
 github.com/prometheus/exporter-toolkit v0.17.0 h1:5mS4jzbo0HQK33J4PmLn5xUueC0W9K4IHJitezlqbNg=
