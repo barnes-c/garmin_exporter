@@ -12,6 +12,8 @@ github.com/barnes-c/go-garminconnect v0.6.1 h1:JlzUwPU/NaU9umb2IwflC4VXpOkMmP6x3
 github.com/barnes-c/go-garminconnect v0.6.1/go.mod h1:rH2iCmVg6+NFs1joH8weUgn6RJyxk8Z6GZP1cdKbiAk=
 github.com/barnes-c/go-garminconnect v0.7.2 h1:acS6AcGCSAvz9TDEDQ2BHDXu2EaB14SEZwhnfFgcq2s=
 github.com/barnes-c/go-garminconnect v0.7.2/go.mod h1:gKe/iKeRfNt8/OgG5XwVEWDTw2J62HBAwLH5Rapua0o=
+github.com/barnes-c/go-garminconnect v0.7.3 h1:oVJQ3ceveAIhAOZ0KV/aNSpjyqjzyE3FChXV3PVPKW8=
+github.com/barnes-c/go-garminconnect v0.7.3/go.mod h1:gKe/iKeRfNt8/OgG5XwVEWDTw2J62HBAwLH5Rapua0o=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
