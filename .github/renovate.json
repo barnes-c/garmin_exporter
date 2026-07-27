@@ -10,6 +10,10 @@
   ],
   "pinDigests": true,
   "minimumReleaseAge": "7 days",
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
+  "osvVulnerabilityAlerts": true,
   "packageRules": [
     {
       "matchUpdateTypes": [
@@ -51,6 +55,30 @@
         "dockerfile"
       ],
       "groupName": "Docker base images"
+    },
+    {
+      "description": "Renovate skips `// indirect` Go requirements by default.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "Indirect deps are not part of this module's own API and CI gates them, so let minor and patch land unattended; majors still get a human.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
     }
   ]
 }
