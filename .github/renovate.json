@@ -67,7 +67,7 @@
       "enabled": true
     },
     {
-      "description": "Indirect deps are not part of this module's own API and CI gates them, so let minor and patch land unattended; majors still get a human.",
+      "description": "Indirect deps are not part of this module's own API and CI gates them, so let minor and patch land unattended.",
       "matchManagers": [
         "gomod"
       ],
@@ -79,6 +79,19 @@
         "patch"
       ],
       "automerge": true
+    },
+    {
+      "description": "A Go major bump changes the module path, so on an indirect dep it appends a second copy (e.g. backoff/v7) alongside the original rather than replacing it. The old path stays until the direct dep that imports it moves, so Renovate re-proposes the same update every run. Let these arrive via their parent instead.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
   ]
 }
