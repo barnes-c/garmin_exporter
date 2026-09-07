@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 )
 
 // buildResource composes the OTel Resource from SDK metadata, host/process
