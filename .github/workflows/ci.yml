@@ -49,3 +49,41 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make build
+
+  smoke:
+    name: Container smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: docker build -t garmin_exporter:smoke -f Dockerfile .
+
+      - name: Start container
+        run: |
+          docker run -d --name smoke -p 10045:10045 \
+            -e GARMIN_USERNAME=dummy -e GARMIN_PASSWORD=dummy \
+            garmin_exporter:smoke
+
+      - name: Wait for /healthz
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:10045/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "exporter never became healthy"
+          exit 1
+
+      - name: Assert still running and /metrics serves a merged resource
+        run: |
+          set -euo pipefail
+          [ "$(docker inspect -f '{{.State.Running}}' smoke)" = "true" ]
+          curl -fsS http://127.0.0.1:10045/metrics | grep -q '^target_info'
+
+      - name: Container logs
+        if: always()
+        run: docker logs smoke
