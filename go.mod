@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/barnes-c/go-garminconnect v0.7.3
 	github.com/prometheus/client_golang v1.24.1
-	github.com/prometheus/common v0.71.0
+	github.com/prometheus/common v0.72.0
 	github.com/prometheus/exporter-toolkit v0.20.0
 	github.com/prometheus/procfs v0.22.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
