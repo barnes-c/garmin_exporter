@@ -1,4 +1,4 @@
-FROM golang:1.27@sha256:e432b43af23a9328d56a7c499be0476810aa344acbcf65fc7c455d4ff5a40602 AS builder
+FROM golang:1.27@sha256:f20d83a83e18dbd2a4714b8ffd4b30b287b6243962dd75608e86abcc63ba4efc AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -X github.com/prometheus/common/version.BuildDate=${DATE}" \
     -o garmin_exporter .
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:d62067879de890a1def9da0e7766b7d20810a5e5555cef8506b752437d7a3e88
 
 ARG COMMIT
 ARG DATE
