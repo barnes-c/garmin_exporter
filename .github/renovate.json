@@ -10,7 +10,7 @@
   ],
   "pinDigests": true,
   "platformAutomerge": false,
-  "minimumReleaseAge": "7 days",
+  "minimumReleaseAge": "3 days",
   "postUpdateOptions": [
     "gomodTidy"
   ],
