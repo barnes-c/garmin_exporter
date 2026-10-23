@@ -253,6 +253,6 @@ func (m *Manager) attemptLogin(ctx context.Context) (time.Duration, bool) {
 	span.SetAttributes(attribute.String("garmin.auth.next_retry", nextRetry.Format(time.RFC3339)))
 	m.client.Set(nil)
 	m.state.SetLoginFailure(nextRetry)
-	m.logger.Error("Garmin login failed", "err", err, "retry_after", delay, "next_retry", nextRetry.Unix())
+	m.logger.Error("Garmin login failed", "err", err, "retry_after", delay.Round(time.Second).String(), "next_retry", nextRetry.Format(time.RFC3339))
 	return delay, false
 }
