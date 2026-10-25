@@ -50,6 +50,7 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+    sbom: false
     build_args:
       COMMIT: "{{ .FullCommit }}"
       DATE: "{{ .Date }}"
@@ -57,8 +58,8 @@ dockers_v2:
 
 sboms:
   - artifacts: binary
-  - cmd: syft
-  - args: ["$artifact", "--output", "spdx-json=$document", "--enrich", "all"]
+    cmd: syft
+    args: ["$artifact", "--output", "spdx-json=$document", "--enrich", "all"]
 
 checksum:
   name_template: checksums.txt
@@ -92,6 +93,7 @@ docker_signs:
     args:
       - sign
       - --yes
+      - --recursive
       - ${artifact}@${digest}
 
 release:
@@ -111,7 +113,8 @@ release:
     Linux `amd64` / `arm64` tarballs are attached below (`garmin_exporter_{{ .Version }}_linux_*.tar.gz`).
 
     ### SBOMs
-    SPDX SBOMs (`*.sbom.json`) are attached for supply-chain verification.
+    - Binaries: SPDX SBOMs (`*.sbom.json`) are attached below.
+    - Container images: a signed SPDX SBOM per platform is attested to each image (see Verification).
   footer: |
     ## Verification
 
@@ -131,4 +134,13 @@ release:
     cosign verify ghcr.io/barnes-c/garmin_exporter:{{ .Version }} \
       --certificate-identity-regexp "^https://github.com/barnes-c/garmin_exporter/" \
       --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    ```
+
+    Verify and extract a container SBOM (replace `arm64` with your architecture):
+    ```
+    cosign verify-attestation --type spdxjson ghcr.io/barnes-c/garmin_exporter:{{ .Version }} \
+      --certificate-identity-regexp "^https://github.com/barnes-c/garmin_exporter/" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      | jq -r .payload | base64 -d \
+      | jq '.predicate | select(any(.packages[].externalRefs[]?; .referenceLocator | test("^pkg:oci/.*arch=arm64")))'
     ```

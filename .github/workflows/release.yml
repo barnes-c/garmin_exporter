@@ -65,12 +65,14 @@ jobs:
             | while read -r repo digest; do
                 [ -z "$repo" ] && continue
                 ref="${repo}@${digest}"
-                echo "::group::SBOM for $ref"
-                syft "$ref" \
-                  --sbom-author "type=person&name=Christopher Barnes&email=christopher@barnes.biz" \
-                  -o spdx-json=sbom.spdx.json
-                cosign attest --type spdxjson --predicate sbom.spdx.json --yes "$ref"
-                echo "::endgroup::"
+                docker buildx imagetools inspect --raw "$ref" \
+                  | jq -r '.manifests[].platform | select(.os != "unknown") | "\(.os)/\(.architecture)"' \
+                  | while read -r platform; do
+                      echo "::group::SBOM for $ref ($platform)"
+                      syft "$ref" --platform "$platform" -o spdx-json=sbom.spdx.json
+                      cosign attest --type spdxjson --predicate sbom.spdx.json --yes "$ref"
+                      echo "::endgroup::"
+                    done
               done
 
       - name: Aggregate binary/package hashes for SLSA
