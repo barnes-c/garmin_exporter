@@ -47,6 +47,8 @@ jobs:
 
       - name: Derive test config from release config
         run: |
+          # Local tag only (never pushed); goreleaser needs one on HEAD.
+          git tag "$GORELEASER_CURRENT_TAG"
           yq '
             .dockers_v2[0].images = [strenv(TEST_IMAGE)]
             | .dockers_v2[0].tags = ["{{ .Version }}"]
