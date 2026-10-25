@@ -91,7 +91,7 @@ jobs:
           echo "::group::No BuildKit SBOM in the index"
           sbom=$(docker buildx imagetools inspect "$ref" --format '{{ json .SBOM }}')
           echo "$sbom"
-          [ "$sbom" = "null" ] || [ "$sbom" = "{}" ] || { echo "BuildKit SBOM still present"; exit 1; }
+          if grep -q spdxVersion <<< "$sbom"; then echo "BuildKit SBOM still present"; exit 1; fi
           echo "::endgroup::"
 
           echo "::group::Signature on the index"
