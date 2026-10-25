@@ -66,7 +66,9 @@ jobs:
                 [ -z "$repo" ] && continue
                 ref="${repo}@${digest}"
                 echo "::group::SBOM for $ref"
-                syft -q "$ref" -o spdx-json=sbom.spdx.json
+                syft "$ref" \
+                  --sbom-author "type=person&name=Christopher Barnes&email=christopher@barnes.biz" \
+                  -o spdx-json=sbom.spdx.json
                 cosign attest --type spdxjson --predicate sbom.spdx.json --yes "$ref"
                 echo "::endgroup::"
               done

@@ -57,6 +57,8 @@ dockers_v2:
 
 sboms:
   - artifacts: binary
+  - cmd: syft
+  - args: ["$artifact", "--output", "spdx-json=$document", "--enrich", "all"]
 
 checksum:
   name_template: checksums.txt
