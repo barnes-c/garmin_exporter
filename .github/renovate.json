@@ -9,7 +9,7 @@
     "dependencies"
   ],
   "pinDigests": true,
-  "platformAutomerge": false,
+  "platformAutomerge": true,
   "minimumReleaseAge": "3 days",
   "postUpdateOptions": [
     "gomodTidy"
