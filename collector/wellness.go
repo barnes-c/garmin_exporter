@@ -40,7 +40,6 @@ type wellnessCollector struct {
 	avgWakingRespiration    metric.Float64ObservableGauge
 	highestRespiration      metric.Float64ObservableGauge
 	lowestRespiration       metric.Float64ObservableGauge
-	avgStressDuration       metric.Int64ObservableGauge
 	highStressDuration      metric.Int64ObservableGauge
 	lowStressDuration       metric.Int64ObservableGauge
 	restStressDuration      metric.Int64ObservableGauge
@@ -136,9 +135,6 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.lowestRespiration, err = floatGauge("garmin.wellness.lowest_respiration_bpm", "Lowest respiration rate.", "{breath}/min"); err != nil {
 		return err
 	}
-	if c.avgStressDuration, err = intGauge("garmin.wellness.avg_stress_duration_seconds", "Average stress event duration in seconds.", "s"); err != nil {
-		return err
-	}
 	if c.highStressDuration, err = intGauge("garmin.wellness.high_stress_duration_seconds", "High stress duration in seconds.", "s"); err != nil {
 		return err
 	}
@@ -172,7 +168,7 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 		c.floorsAscended, c.floorsDescended, c.floorsAscendedGoal,
 		c.minHeartRate, c.maxHeartRate, c.restingHeartRate, c.avgRestingHeartRate7Day,
 		c.avgWakingRespiration, c.highestRespiration, c.lowestRespiration,
-		c.avgStressDuration, c.highStressDuration, c.lowStressDuration, c.restStressDuration,
+		c.highStressDuration, c.lowStressDuration, c.restStressDuration,
 		c.bodyBatteryCharged, c.bodyBatteryDrained, c.bodyBatteryHighest, c.bodyBatteryLowest, c.bodyBatteryLatest,
 	)
 	return err
@@ -220,7 +216,6 @@ func (c *wellnessCollector) observe(_ context.Context, o metric.Observer) error 
 	if s.LowestRespirationValue > 0 {
 		o.ObserveFloat64(c.lowestRespiration, s.LowestRespirationValue)
 	}
-	o.ObserveInt64(c.avgStressDuration, int64(s.AvgStressDuration))
 	o.ObserveInt64(c.highStressDuration, int64(s.HighStressDuration))
 	o.ObserveInt64(c.lowStressDuration, int64(s.LowStressDuration))
 	o.ObserveInt64(c.restStressDuration, int64(s.RestStressDuration))

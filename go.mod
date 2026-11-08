@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/barnes-c/go-garminconnect v0.7.3
+	github.com/barnes-c/go-garminconnect v1.1.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/common v0.73.1
 	github.com/prometheus/exporter-toolkit v0.20.0
