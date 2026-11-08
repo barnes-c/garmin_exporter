@@ -123,7 +123,6 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.fitness_age.component_value` (`component`)             | `fitnessage`       |
 | `garmin.fitness_age.component_potential_years` (`component`)   | `fitnessage`       |
 | `garmin.gear.max_meters` (`gear_name`, `gear_type`)            | `gear`             |
-| `garmin.gear.notified_at_meters` (`gear_name`, `gear_type`)    | `gear`             |
 | `garmin.gear.active` (`gear_name`, `gear_type`)                | `gear`             |
 | `garmin.gear.total_distance_meters` (`gear_name`, `gear_type`) | `gear`             |
 | `garmin.gear.total_activities` (`gear_name`, `gear_type`)      | `gear`             |
@@ -217,7 +216,6 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.wellness.avg_waking_respiration_bpm`                   | `wellness`         |
 | `garmin.wellness.highest_respiration_bpm`                      | `wellness`         |
 | `garmin.wellness.lowest_respiration_bpm`                       | `wellness`         |
-| `garmin.wellness.avg_stress_duration_seconds`                  | `wellness`         |
 | `garmin.wellness.rest_stress_duration_seconds`                 | `wellness`         |
 | `garmin.wellness.low_stress_duration_seconds`                  | `wellness`         |
 | `garmin.wellness.high_stress_duration_seconds`                 | `wellness`         |

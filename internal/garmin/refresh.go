@@ -46,6 +46,9 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			attempts++
 			childCtx, span := otel.Tracer(otelpkg.ScopeName).Start(ctx, "garmin."+name)
 			err := fn(childCtx)
+			if errors.Is(err, garminconnect.ErrNoData) {
+				err = nil // Garmin has nothing for today; not a failure
+			}
 			endSpan(span, err)
 			if err != nil {
 				failures++
@@ -291,6 +294,9 @@ func collectTraining(ctx context.Context, gc *garminconnect.Client, now time.Tim
 		attempts++
 		childCtx, span := otel.Tracer(otelpkg.ScopeName).Start(ctx, "garmin."+name)
 		err := fn(childCtx)
+		if errors.Is(err, garminconnect.ErrNoData) {
+			err = nil // Garmin has nothing for today; not a failure
+		}
 		endSpan(span, err)
 		if err != nil {
 			failures++

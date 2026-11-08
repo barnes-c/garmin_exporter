@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/barnes-c/go-garminconnect/garminconnect"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
@@ -65,10 +66,20 @@ func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source)
 
 func (c *bloodPressureCollector) observe(_ context.Context, o metric.Observer) error {
 	snap := c.src.Snapshot()
-	if snap == nil || snap.BloodPressure == nil || len(snap.BloodPressure.Measurements) == 0 {
+	if snap == nil || snap.BloodPressure == nil {
 		return nil
 	}
-	latest := snap.BloodPressure.Measurements[len(snap.BloodPressure.Measurements)-1]
+	var latest garminconnect.BloodPressureSnapshot
+	for _, day := range snap.BloodPressure.Days {
+		for _, m := range day.Measurements {
+			if m.TimestampGMT > latest.TimestampGMT {
+				latest = m
+			}
+		}
+	}
+	if latest.TimestampGMT == "" {
+		return nil
+	}
 	if latest.Systolic > 0 {
 		o.ObserveInt64(c.systolic, int64(latest.Systolic))
 	}

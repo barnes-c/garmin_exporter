@@ -156,8 +156,8 @@ func (c *sleepCollector) observe(_ context.Context, o metric.Observer) error {
 		if dto.SpO2AvgReadingPercent > 0 {
 			o.ObserveFloat64(c.spO2Avg, dto.SpO2AvgReadingPercent)
 		}
-		if dto.SpO2LowReadingPercent > 0 {
-			o.ObserveFloat64(c.spO2Low, dto.SpO2LowReadingPercent)
+		if dto.LowestSpO2Value > 0 {
+			o.ObserveFloat64(c.spO2Low, dto.LowestSpO2Value)
 		}
 	}
 	if snap.Sleep.HRV != nil {
