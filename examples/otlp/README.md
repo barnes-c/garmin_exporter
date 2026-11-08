@@ -38,7 +38,7 @@ docker compose run --rm garmin_exporter
 docker compose up -d
 ```
 
-Open <http://localhost:3000>. Metrics arrive via the `Prometheus` datasource, traces via `Tempo`, logs via `Loki`. Trace and log entries are linked: clicking a trace ID in Loki jumps to Tempo, and Tempo spans expose links back to Loki and Prometheus.
+Open <http://localhost:3000>. Metrics arrive via the `Prometheus` datasource, traces via `Tempo`, logs via `Loki`. The [Garmin dashboards](../dashboards) are in the **Garmin** folder. Trace and log entries are linked: clicking a trace ID in Loki jumps to Tempo, and Tempo spans expose links back to Loki and Prometheus.
 
 ## Reset
 

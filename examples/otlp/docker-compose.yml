@@ -106,6 +106,7 @@ services:
       GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"
