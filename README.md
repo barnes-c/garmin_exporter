@@ -105,6 +105,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.body.muscle_mass_grams`                                | `body`              |
 | `garmin.body.visceral_fat`                                     | `body`              |
 | `garmin.body.metabolic_age_years`                              | `body`              |
+| `garmin.body.last_weigh_in_timestamp_seconds`                  | `body`              |
 | `garmin.body_composition.weight_grams_avg`                     | `body_composition`  |
 | `garmin.body_composition.bmi_avg`                              | `body_composition`  |
 | `garmin.body_composition.fat_percent_avg`                      | `body_composition`  |
@@ -142,6 +143,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.intensity.weekly_goal_minutes`                         | `intensity`         |
 | `garmin.intensity.weekly_moderate_minutes`                     | `intensity`         |
 | `garmin.intensity.weekly_vigorous_minutes`                     | `intensity`         |
+| `garmin.intensity.weekly_total_minutes`                        | `intensity`         |
 | `garmin.lactate_threshold.running_speed_mps`                   | `lactate_threshold` |
 | `garmin.lactate_threshold.running_heart_rate_bpm`              | `lactate_threshold` |
 | `garmin.lactate_threshold.cycling_heart_rate_bpm`              | `lactate_threshold` |

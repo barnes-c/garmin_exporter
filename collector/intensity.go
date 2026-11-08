@@ -21,6 +21,7 @@ type intensityCollector struct {
 	weeklyGoal   metric.Int64ObservableGauge
 	moderateMins metric.Int64ObservableGauge
 	vigorousMins metric.Int64ObservableGauge
+	weeklyTotal  metric.Int64ObservableGauge
 }
 
 func newIntensityCollector(log *slog.Logger) (Collector, error) {
@@ -58,8 +59,17 @@ func (c *intensityCollector) Register(meter metric.Meter, src garmin.Source) err
 		return err
 	}
 
+	c.weeklyTotal, err = meter.Int64ObservableGauge(
+		"garmin.intensity.weekly_total_minutes",
+		metric.WithDescription("Intensity minutes this week, vigorous counted double (what the weekly goal measures)."),
+		metric.WithUnit("min"),
+	)
+	if err != nil {
+		return err
+	}
+
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.weeklyGoal, c.moderateMins, c.vigorousMins)
+		c.weeklyGoal, c.moderateMins, c.vigorousMins, c.weeklyTotal)
 	return err
 }
 
@@ -70,7 +80,8 @@ func (c *intensityCollector) observe(_ context.Context, o metric.Observer) error
 	}
 	im := snap.Intensity
 	o.ObserveInt64(c.weeklyGoal, int64(im.WeeklyGoal))
-	o.ObserveInt64(c.moderateMins, int64(im.ModerateIntensityMinutes))
-	o.ObserveInt64(c.vigorousMins, int64(im.VigorousIntensityMinutes))
+	o.ObserveInt64(c.moderateMins, int64(im.WeeklyModerate))
+	o.ObserveInt64(c.vigorousMins, int64(im.WeeklyVigorous))
+	o.ObserveInt64(c.weeklyTotal, int64(im.WeeklyTotal))
 	return nil
 }

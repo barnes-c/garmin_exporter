@@ -61,6 +61,9 @@ func (c *devicesCollector) observe(_ context.Context, o metric.Observer) error {
 		return nil
 	}
 	devices := snap.Devices
+	if devices == nil {
+		return nil // fetch failed; don't report 0 devices
+	}
 	o.ObserveInt64(c.count, int64(len(devices)))
 	for _, d := range devices {
 		o.ObserveInt64(c.info, 1, metric.WithAttributes(

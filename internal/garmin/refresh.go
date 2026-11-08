@@ -128,8 +128,8 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 			}
 			return err
 		})
-		call("DailyWeighIns", func(ctx context.Context) error {
-			v, err := gc.DailyWeighIns(ctx, now)
+		call("LatestWeight", func(ctx context.Context) error {
+			v, err := gc.LatestWeight(ctx, now)
 			if err == nil {
 				snap.Body = v
 			}

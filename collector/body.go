@@ -26,6 +26,7 @@ type bodyCollector struct {
 	muscleMass   metric.Float64ObservableGauge
 	visceralFat  metric.Float64ObservableGauge
 	metabolicAge metric.Float64ObservableGauge
+	lastWeighIn  metric.Int64ObservableGauge
 }
 
 func newBodyCollector(log *slog.Logger) (Collector, error) {
@@ -102,18 +103,30 @@ func (c *bodyCollector) Register(meter metric.Meter, src garmin.Source) error {
 		return err
 	}
 
+	c.lastWeighIn, err = meter.Int64ObservableGauge(
+		"garmin.body.last_weigh_in_timestamp_seconds",
+		metric.WithDescription("Unix time of the weigh-in the other garmin.body metrics come from."),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return err
+	}
+
 	c.registration, err = meter.RegisterCallback(c.observe,
 		c.weightGrams, c.bmi, c.bodyFat, c.bodyWater,
-		c.boneMass, c.muscleMass, c.visceralFat, c.metabolicAge)
+		c.boneMass, c.muscleMass, c.visceralFat, c.metabolicAge, c.lastWeighIn)
 	return err
 }
 
 func (c *bodyCollector) observe(_ context.Context, o metric.Observer) error {
 	snap := c.src.Snapshot()
-	if snap == nil || snap.Body == nil || len(snap.Body.DateWeightList) == 0 {
+	if snap == nil || snap.Body == nil || snap.Body.Weight == 0 {
 		return nil
 	}
-	w := snap.Body.DateWeightList[0]
+	w := snap.Body
+	if w.TimestampGMT > 0 {
+		o.ObserveInt64(c.lastWeighIn, w.TimestampGMT/1000)
+	}
 	if w.Weight > 0 {
 		o.ObserveFloat64(c.weightGrams, w.Weight)
 	}
