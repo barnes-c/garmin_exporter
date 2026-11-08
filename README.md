@@ -197,6 +197,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.training.endurance_score`                              | `training`          |
 | `garmin.training.hill_score`                                   | `training`          |
 | `garmin.training_status.code`                                  | `training_status`   |
+| `garmin.training_status.info` (`status`)                       | `training_status`   |
 | `garmin.training_status.weekly_training_load`                  | `training_status`   |
 | `garmin.training_status.acwr_percent`                          | `training_status`   |
 | `garmin.training_status.acwr_ratio`                            | `training_status`   |

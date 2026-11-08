@@ -588,3 +588,30 @@ func TestPersonalRecordsCollector_NamesRecordsByType(t *testing.T) {
 		}
 	}
 }
+
+func TestTrainingStatusCollector_NamesStatusFromPhrase(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{TrainingStatus: &garminconnect.TrainingStatusResponse{
+		MostRecentTrainingStatus: &garminconnect.MostRecentTrainingStatus{
+			LatestTrainingStatusData: map[string]garminconnect.PerDeviceTrainingStatus{
+				"1": {PrimaryTrainingDevice: true, TrainingStatus: 1, FeedbackPhrase: "DETRAINING_1"},
+			},
+		},
+	}}}
+
+	g, err := collector.NewGroup(discardLogger(), "training_status")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	if got := attrValue[int64](t, m, "garmin.training_status.info", "status", "detraining"); got != 1 {
+		t.Errorf("training_status.info{status=detraining} = %d, want 1", got)
+	}
+	if got := gaugeValue[int64](t, m, "garmin.training_status.code"); got != 1 {
+		t.Errorf("training_status.code = %d, want 1", got)
+	}
+}

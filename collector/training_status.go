@@ -3,7 +3,9 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
@@ -18,9 +20,8 @@ type trainingStatusCollector struct {
 	log *slog.Logger
 	src garmin.Source
 
-	// TrainingStatus int codes: 0=unknown, 1=not_enough_data, 2=peaking, 3=productive,
-	// 4=maintaining, 5=recovery, 6=unproductive, 7=strained, 8=over_reaching, 9=detraining
 	status          metric.Int64ObservableGauge
+	info            metric.Int64ObservableGauge
 	weeklyLoad      metric.Float64ObservableGauge
 	acwrPercent     metric.Int64ObservableGauge
 	acwrRatio       metric.Float64ObservableGauge
@@ -42,7 +43,13 @@ func (c *trainingStatusCollector) Register(meter metric.Meter, src garmin.Source
 	var err error
 	if c.status, err = meter.Int64ObservableGauge(
 		"garmin.training_status.code",
-		metric.WithDescription("Garmin training status code from the primary device."),
+		metric.WithDescription("Garmin training status code from the primary device (1 = detraining; see garmin.training_status.info for the name)."),
+	); err != nil {
+		return err
+	}
+	if c.info, err = meter.Int64ObservableGauge(
+		"garmin.training_status.info",
+		metric.WithDescription("Training status of the primary device as named by Garmin (value is always 1)."),
 	); err != nil {
 		return err
 	}
@@ -93,7 +100,7 @@ func (c *trainingStatusCollector) Register(meter metric.Meter, src garmin.Source
 	}
 
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.status, c.weeklyLoad, c.acwrPercent, c.acwrRatio,
+		c.status, c.info, c.weeklyLoad, c.acwrPercent, c.acwrRatio,
 		c.aerobicLowLoad, c.aerobicHighLoad, c.anaerobicLoad, c.paused,
 	)
 	return err
@@ -112,6 +119,9 @@ func (c *trainingStatusCollector) observe(_ context.Context, o metric.Observer) 
 				continue
 			}
 			o.ObserveInt64(c.status, int64(entry.TrainingStatus))
+			if name := statusName(entry.FeedbackPhrase); name != "" {
+				o.ObserveInt64(c.info, 1, metric.WithAttributes(attribute.String("status", name)))
+			}
 			var paused int64
 			if entry.TrainingPaused {
 				paused = 1
@@ -140,4 +150,14 @@ func (c *trainingStatusCollector) observe(_ context.Context, o metric.Observer) 
 		}
 	}
 	return nil
+}
+
+// statusName turns Garmin's feedback phrase ("DETRAINING_1", "PRODUCTIVE_6")
+// into the status it names ("detraining", "productive"). The numeric suffix
+// only picks Garmin's explanatory sentence.
+func statusName(phrase string) string {
+	if i := strings.LastIndexByte(phrase, '_'); i > 0 && strings.Trim(phrase[i+1:], "0123456789") == "" {
+		phrase = phrase[:i]
+	}
+	return strings.ToLower(phrase)
 }
