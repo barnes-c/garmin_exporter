@@ -27,6 +27,7 @@ type trainingStatusCollector struct {
 	aerobicLowLoad  metric.Float64ObservableGauge
 	aerobicHighLoad metric.Float64ObservableGauge
 	anaerobicLoad   metric.Float64ObservableGauge
+	paused          metric.Int64ObservableGauge
 }
 
 func newTrainingStatusCollector(log *slog.Logger) (Collector, error) {
@@ -84,9 +85,16 @@ func (c *trainingStatusCollector) Register(meter metric.Meter, src garmin.Source
 		return err
 	}
 
+	if c.paused, err = meter.Int64ObservableGauge(
+		"garmin.trainingstatus.paused",
+		metric.WithDescription("1 if training status is paused (e.g. illness or rest), 0 otherwise."),
+	); err != nil {
+		return err
+	}
+
 	c.registration, err = meter.RegisterCallback(c.observe,
 		c.status, c.weeklyLoad, c.acwrPercent, c.acwrRatio,
-		c.aerobicLowLoad, c.aerobicHighLoad, c.anaerobicLoad,
+		c.aerobicLowLoad, c.aerobicHighLoad, c.anaerobicLoad, c.paused,
 	)
 	return err
 }
@@ -104,6 +112,11 @@ func (c *trainingStatusCollector) observe(_ context.Context, o metric.Observer) 
 				continue
 			}
 			o.ObserveInt64(c.status, int64(entry.TrainingStatus))
+			var paused int64
+			if entry.TrainingPaused {
+				paused = 1
+			}
+			o.ObserveInt64(c.paused, paused)
 			if entry.WeeklyTrainingLoad != nil {
 				o.ObserveFloat64(c.weeklyLoad, *entry.WeeklyTrainingLoad)
 			}
