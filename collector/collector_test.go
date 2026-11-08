@@ -111,9 +111,9 @@ func TestNewGroup_UnknownCollector_ReturnsError(t *testing.T) {
 
 // --- garmin.collector.up ---
 
-func TestRegisterAll_UpGaugeEmitsOnePerCollector(t *testing.T) {
+func TestRegisterAll_UpGaugeReflectsData(t *testing.T) {
 	meter, reader := setupMeter(t)
-	src := &staticSource{}
+	src := &staticSource{snap: &garmin.Snapshot{HeartRate: &garminconnect.HeartRates{}}}
 
 	g, err := collector.NewGroup(discardLogger(), "heart_rate", "stress")
 	if err != nil {
@@ -134,9 +134,9 @@ func TestRegisterAll_UpGaugeEmitsOnePerCollector(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"heart_rate", "stress"} {
-		if v, ok := seen[name]; !ok || v != 1 {
-			t.Errorf("garmin.collector.up{collector=%q} = %v, want 1", name, v)
+	for name, want := range map[string]int64{"heart_rate": 1, "stress": 0} {
+		if v, ok := seen[name]; !ok || v != want {
+			t.Errorf("garmin.collector.up{collector=%q} = %v, want %d", name, v, want)
 		}
 	}
 }
@@ -493,5 +493,63 @@ func TestTrainingCollector_EmitsReadinessFactors(t *testing.T) {
 		if got := attrValue[int64](t, m, "garmin.training.readiness_factor_percent", "factor", factor); got != want {
 			t.Errorf("readiness_factor_percent %s = %d, want %d", factor, got, want)
 		}
+	}
+}
+
+func TestIntensityCollector_EmitsWeekToDate(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{Intensity: &garminconnect.IntensityMinutesData{
+		WeeklyGoal:               150,
+		ModerateIntensityMinutes: 5, // today only; must not be reported as weekly
+		VigorousIntensityMinutes: 2,
+		WeeklyModerate:           60,
+		WeeklyVigorous:           20,
+		WeeklyTotal:              100,
+	}}}
+
+	g, err := collector.NewGroup(discardLogger(), "intensity")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	for name, want := range map[string]int64{
+		"garmin.intensity.weekly_goal_minutes":     150,
+		"garmin.intensity.weekly_moderate_minutes": 60,
+		"garmin.intensity.weekly_vigorous_minutes": 20,
+		"garmin.intensity.weekly_total_minutes":    100,
+	} {
+		if got := gaugeValue[int64](t, m, name); got != want {
+			t.Errorf("%s = %d, want %d", name, got, want)
+		}
+	}
+}
+
+func TestLactateThresholdCollector_ReadsSeparateEntries(t *testing.T) {
+	meter, reader := setupMeter(t)
+	speed := 0.33 // Garmin's unit is 10 m/s
+	hr := 172
+	// Garmin returns the speed and the heart rate in separate entries.
+	src := &staticSource{snap: &garmin.Snapshot{
+		LactateThreshold: []garminconnect.LactateThresholdEntry{{Speed: &speed}, {HearRate: &hr}},
+	}}
+
+	g, err := collector.NewGroup(discardLogger(), "lactate_threshold")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	if got := gaugeValue[float64](t, m, "garmin.lactate_threshold.running_speed_mps"); got < 3.29 || got > 3.31 {
+		t.Errorf("running_speed_mps = %v, want 3.3", got)
+	}
+	if got := gaugeValue[int64](t, m, "garmin.lactate_threshold.running_heart_rate_bpm"); got != 172 {
+		t.Errorf("running_heart_rate_bpm = %d, want 172", got)
 	}
 }

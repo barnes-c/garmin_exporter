@@ -62,18 +62,26 @@ func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Sour
 
 func (c *lactateThresholdCollector) observe(_ context.Context, o metric.Observer) error {
 	snap := c.src.Snapshot()
-	if snap == nil || len(snap.LactateThreshold) == 0 {
+	if snap == nil {
 		return nil
 	}
-	e := snap.LactateThreshold[0]
-	if e.Speed != nil && *e.Speed > 0 {
-		o.ObserveFloat64(c.runningSpeedMPS, *e.Speed)
-	}
-	if e.HearRate != nil && *e.HearRate > 0 {
-		o.ObserveInt64(c.runningHeartRate, int64(*e.HearRate))
-	}
-	if e.HeartRateCycling != nil && *e.HeartRateCycling > 0 {
-		o.ObserveInt64(c.cyclingHeartRate, int64(*e.HeartRateCycling))
+	// Garmin returns one entry per measurement (one with the speed, another
+	// with the heart rate), so take each value from the entry that has it.
+	var speedSeen, hrSeen, cyclingSeen bool
+	for _, e := range snap.LactateThreshold {
+		if !speedSeen && e.Speed != nil && *e.Speed > 0 {
+			// Garmin reports this speed in units of 10 m/s (e.g. 0.33 for 3.3 m/s).
+			o.ObserveFloat64(c.runningSpeedMPS, *e.Speed*10)
+			speedSeen = true
+		}
+		if !hrSeen && e.HearRate != nil && *e.HearRate > 0 {
+			o.ObserveInt64(c.runningHeartRate, int64(*e.HearRate))
+			hrSeen = true
+		}
+		if !cyclingSeen && e.HeartRateCycling != nil && *e.HeartRateCycling > 0 {
+			o.ObserveInt64(c.cyclingHeartRate, int64(*e.HeartRateCycling))
+			cyclingSeen = true
+		}
 	}
 	return nil
 }

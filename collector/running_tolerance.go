@@ -56,7 +56,12 @@ func (c *runningToleranceCollector) observe(_ context.Context, o metric.Observer
 	if snap == nil || len(snap.RunningTolerance) == 0 {
 		return nil
 	}
-	latest := snap.RunningTolerance[len(snap.RunningTolerance)-1]
+	latest := snap.RunningTolerance[0]
+	for _, e := range snap.RunningTolerance[1:] {
+		if e.CalendarDate > latest.CalendarDate {
+			latest = e
+		}
+	}
 	if latest.Score > 0 {
 		o.ObserveFloat64(c.score, latest.Score)
 	}
