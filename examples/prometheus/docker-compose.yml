@@ -2,8 +2,7 @@
 # garmin_exporter + Prometheus + Grafana.
 #
 # Prometheus scrapes /metrics on the exporter every 60s and Grafana is
-# pre-provisioned with Prometheus as a datasource.
-# Build your own dashboard in Grafana.
+# pre-provisioned with Prometheus as a datasource and the Garmin dashboards.
 
 services:
   # One-shot sidecar: the upstream image runs as nonroot (UID 65532), but a
@@ -61,6 +60,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "3000:3000"

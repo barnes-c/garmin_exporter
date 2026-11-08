@@ -25,7 +25,7 @@ docker compose run --rm garmin_exporter
 docker compose up -d
 ```
 
-Open <http://localhost:3000>. Build your own dashboard — none is bundled. Metric names follow `garmin_<area>_<name>` after the OTel→Prometheus transform (e.g. `garmin.body.weight_grams` → `garmin_body_weight_grams`). See the project [README](../../README.md#metrics) for the full list.
+Open <http://localhost:3000>. The [Garmin dashboards](../dashboards) are in the **Garmin** folder. Metric names follow `garmin_<area>_<name>` after the OTel→Prometheus transform (e.g. `garmin.body.weight_grams` → `garmin_body_weight_grams`). See the project [README](../../README.md#metrics) for the full list.
 
 ## Reset
 

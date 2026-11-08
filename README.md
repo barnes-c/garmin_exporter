@@ -43,6 +43,7 @@ Checkout the examples in [`examples/`](./examples):
 
 - [`examples/prometheus`](./examples/prometheus) — classic scrape with Prometheus + Grafana.
 - [`examples/otlp`](./examples/otlp) — OTel-first setup with Prometheus, Tempo, and Loki.
+- [`examples/dashboards`](./examples/dashboards) — Grafana dashboards (Today, Health, Training), provisioned by both setups above.
 - [`examples/otelconf.yaml`](./examples/otelconf.yaml) — examplary OTel SDK config consumed via `OTEL_CONFIG_FILE`.
 
 ## Configuration
