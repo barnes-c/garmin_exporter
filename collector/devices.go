@@ -43,7 +43,7 @@ func (c *devicesCollector) Register(meter metric.Meter, src garmin.Source) error
 		return err
 	}
 	c.count, err = meter.Int64ObservableGauge(
-		"garmin.device.count",
+		"garmin.device.registered",
 		metric.WithDescription("Number of registered Garmin devices."),
 		metric.WithUnit("{device}"),
 	)

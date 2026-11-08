@@ -20,13 +20,10 @@ type trainingCollector struct {
 	src garmin.Source
 
 	readinessScore    metric.Int64ObservableGauge
-	readinessSleep    metric.Int64ObservableGauge
 	readinessRecovery metric.Int64ObservableGauge
-	readinessHRVAvg   metric.Int64ObservableGauge
 	readinessFactor   metric.Int64ObservableGauge
 	vo2maxGeneric     metric.Float64ObservableGauge
 	vo2maxCycling     metric.Float64ObservableGauge
-	fitnessAge        metric.Int64ObservableGauge
 	race5KSeconds     metric.Int64ObservableGauge
 	race10KSeconds    metric.Int64ObservableGauge
 	raceHalfSeconds   metric.Int64ObservableGauge
@@ -57,25 +54,16 @@ func (c *trainingCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.readinessScore, err = intGauge("garmin.training.readiness_score", "Training readiness score (0-100).", "{score}"); err != nil {
 		return err
 	}
-	if c.readinessSleep, err = intGauge("garmin.training.readiness_sleep_score", "Sleep component of training readiness score.", "{score}"); err != nil {
-		return err
-	}
-	if c.readinessRecovery, err = intGauge("garmin.training.readiness_recovery_minutes", "Recovery time in minutes.", "min"); err != nil {
-		return err
-	}
-	if c.readinessHRVAvg, err = intGauge("garmin.training.readiness_hrv_weekly_avg_ms", "HRV weekly average used in readiness score.", "ms"); err != nil {
+	if c.readinessRecovery, err = intGauge("garmin.training.readiness_recovery_seconds", "Recovery time in seconds.", "s"); err != nil {
 		return err
 	}
 	if c.readinessFactor, err = intGauge("garmin.training.readiness_factor_percent", "Contribution of each factor to training readiness, in percent.", "%"); err != nil {
 		return err
 	}
-	if c.vo2maxGeneric, err = floatGauge("garmin.training.vo2max_generic", "VO2 Max for running/generic activities.", "mL/min/kg"); err != nil {
+	if c.vo2maxGeneric, err = floatGauge("garmin.training.vo2max_generic", "VO2 Max for running/generic activities.", ""); err != nil {
 		return err
 	}
-	if c.vo2maxCycling, err = floatGauge("garmin.training.vo2max_cycling", "VO2 Max for cycling activities.", "mL/min/kg"); err != nil {
-		return err
-	}
-	if c.fitnessAge, err = intGauge("garmin.training.fitness_age_years", "Estimated fitness age in years.", "a"); err != nil {
+	if c.vo2maxCycling, err = floatGauge("garmin.training.vo2max_cycling", "VO2 Max for cycling activities.", ""); err != nil {
 		return err
 	}
 	if c.race5KSeconds, err = intGauge("garmin.training.race_prediction_5k_seconds", "Predicted 5K finish time in seconds.", "s"); err != nil {
@@ -98,8 +86,8 @@ func (c *trainingCollector) Register(meter metric.Meter, src garmin.Source) erro
 	}
 
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.readinessScore, c.readinessSleep, c.readinessRecovery, c.readinessHRVAvg, c.readinessFactor,
-		c.vo2maxGeneric, c.vo2maxCycling, c.fitnessAge,
+		c.readinessScore, c.readinessRecovery, c.readinessFactor,
+		c.vo2maxGeneric, c.vo2maxCycling,
 		c.race5KSeconds, c.race10KSeconds, c.raceHalfSeconds, c.raceMarathon,
 		c.enduranceScore, c.hillScore,
 	)
@@ -116,14 +104,8 @@ func (c *trainingCollector) observe(_ context.Context, o metric.Observer) error 
 	for _, r := range t.Readiness {
 		if r.Score > 0 {
 			o.ObserveInt64(c.readinessScore, int64(r.Score))
-			if r.SleepScore > 0 {
-				o.ObserveInt64(c.readinessSleep, int64(r.SleepScore))
-			}
 			if r.RecoveryTime > 0 {
-				o.ObserveInt64(c.readinessRecovery, int64(r.RecoveryTime))
-			}
-			if r.HrvWeeklyAverage > 0 {
-				o.ObserveInt64(c.readinessHRVAvg, int64(r.HrvWeeklyAverage))
+				o.ObserveInt64(c.readinessRecovery, int64(r.RecoveryTime)*60) // Garmin reports minutes
 			}
 			for factor, pct := range map[string]int{
 				"sleep_score":    r.SleepScoreFactorPercent,
@@ -143,9 +125,6 @@ func (c *trainingCollector) observe(_ context.Context, o metric.Observer) error 
 		m := t.Max[i]
 		if m.Generic != nil && m.Generic.VO2MaxValue > 0 {
 			o.ObserveFloat64(c.vo2maxGeneric, m.Generic.VO2MaxValue)
-			if m.Generic.FitnessAge > 0 {
-				o.ObserveInt64(c.fitnessAge, int64(m.Generic.FitnessAge))
-			}
 			break
 		}
 	}

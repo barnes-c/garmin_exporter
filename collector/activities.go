@@ -39,44 +39,41 @@ func (c *activitiesCollector) Register(meter metric.Meter, src garmin.Source) er
 
 	var err error
 	if c.count, err = meter.Int64ObservableGauge(
-		"garmin.activity.count",
-		metric.WithDescription("Number of activities fetched."),
+		"garmin.activity.recent",
+		metric.WithDescription("Number of recent activities (the last --activity-limit fetched), per type."),
 		metric.WithUnit("{activity}"),
 	); err != nil {
 		return err
 	}
 	if c.durationTotal, err = meter.Float64ObservableGauge(
-		"garmin.activity.duration_seconds_total",
-		metric.WithDescription("Sum of activity durations in seconds."),
+		"garmin.activity.recent_duration_seconds",
+		metric.WithDescription("Summed duration of recent activities in seconds, per type."),
 		metric.WithUnit("s"),
 	); err != nil {
 		return err
 	}
 	if c.distanceTotal, err = meter.Float64ObservableGauge(
-		"garmin.activity.distance_meters_total",
-		metric.WithDescription("Sum of activity distances in meters."),
+		"garmin.activity.recent_distance_meters",
+		metric.WithDescription("Summed distance of recent activities in meters, per type."),
 		metric.WithUnit("m"),
 	); err != nil {
 		return err
 	}
 	if c.caloriesTotal, err = meter.Float64ObservableGauge(
-		"garmin.activity.calories_total",
-		metric.WithDescription("Sum of activity calories."),
-		metric.WithUnit("kcal"),
+		"garmin.activity.recent_kilocalories",
+		metric.WithDescription("Summed energy of recent activities in kilocalories, per type."),
 	); err != nil {
 		return err
 	}
 	if c.lastTimestamp, err = meter.Int64ObservableGauge(
 		"garmin.activity.last_timestamp_seconds",
 		metric.WithDescription("Unix timestamp of the most recent activity of this type."),
-		metric.WithUnit("s"),
 	); err != nil {
 		return err
 	}
 	if c.lifetimeCount, err = meter.Int64ObservableGauge(
-		"garmin.activity.lifetime_count",
+		"garmin.activity.lifetime",
 		metric.WithDescription("Total number of activities ever recorded."),
-		metric.WithUnit("{activity}"),
 	); err != nil {
 		return err
 	}

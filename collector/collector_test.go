@@ -94,11 +94,11 @@ func TestNewGroup_NoFilter_AllCollectors(t *testing.T) {
 }
 
 func TestNewGroup_WithFilter_SubsetOnly(t *testing.T) {
-	g, err := collector.NewGroup(discardLogger(), "heartrate", "sleep")
+	g, err := collector.NewGroup(discardLogger(), "heart_rate", "sleep")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
-	if got := g.Names(); !slices.Equal(got, []string{"heartrate", "sleep"}) {
+	if got := g.Names(); !slices.Equal(got, []string{"heart_rate", "sleep"}) {
 		t.Errorf("Names() = %v, want [heartrate sleep]", got)
 	}
 }
@@ -115,7 +115,7 @@ func TestRegisterAll_UpGaugeEmitsOnePerCollector(t *testing.T) {
 	meter, reader := setupMeter(t)
 	src := &staticSource{}
 
-	g, err := collector.NewGroup(discardLogger(), "heartrate", "stress")
+	g, err := collector.NewGroup(discardLogger(), "heart_rate", "stress")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRegisterAll_UpGaugeEmitsOnePerCollector(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"heartrate", "stress"} {
+	for _, name := range []string{"heart_rate", "stress"} {
 		if v, ok := seen[name]; !ok || v != 1 {
 			t.Errorf("garmin.collector.up{collector=%q} = %v, want 1", name, v)
 		}
@@ -154,7 +154,7 @@ func TestHeartRateCollector_EmitsFromSnapshot(t *testing.T) {
 		},
 	}}
 
-	g, err := collector.NewGroup(discardLogger(), "heartrate")
+	g, err := collector.NewGroup(discardLogger(), "heart_rate")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
@@ -163,16 +163,16 @@ func TestHeartRateCollector_EmitsFromSnapshot(t *testing.T) {
 	}
 
 	metrics := collectMetrics(t, reader)
-	if got := gaugeValue[int64](t, metrics, "garmin.heartrate.resting_bpm"); got != 58 {
+	if got := gaugeValue[int64](t, metrics, "garmin.heart_rate.resting_bpm"); got != 58 {
 		t.Errorf("resting_bpm = %d, want 58", got)
 	}
-	if got := gaugeValue[int64](t, metrics, "garmin.heartrate.min_bpm"); got != 45 {
+	if got := gaugeValue[int64](t, metrics, "garmin.heart_rate.min_bpm"); got != 45 {
 		t.Errorf("min_bpm = %d, want 45", got)
 	}
-	if got := gaugeValue[int64](t, metrics, "garmin.heartrate.max_bpm"); got != 175 {
+	if got := gaugeValue[int64](t, metrics, "garmin.heart_rate.max_bpm"); got != 175 {
 		t.Errorf("max_bpm = %d, want 175", got)
 	}
-	if got := gaugeValue[int64](t, metrics, "garmin.heartrate.seven_day_avg_resting_bpm"); got != 60 {
+	if got := gaugeValue[int64](t, metrics, "garmin.heart_rate.seven_day_avg_resting_bpm"); got != 60 {
 		t.Errorf("seven_day_avg = %d, want 60", got)
 	}
 }
@@ -181,7 +181,7 @@ func TestHeartRateCollector_NilSnapshot_EmitsNothing(t *testing.T) {
 	meter, reader := setupMeter(t)
 	src := &staticSource{}
 
-	g, err := collector.NewGroup(discardLogger(), "heartrate")
+	g, err := collector.NewGroup(discardLogger(), "heart_rate")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestHeartRateCollector_NilSnapshot_EmitsNothing(t *testing.T) {
 
 	metrics := collectMetrics(t, reader)
 	for _, m := range metrics {
-		if m.Name == "garmin.heartrate.resting_bpm" {
+		if m.Name == "garmin.heart_rate.resting_bpm" {
 			if g, ok := m.Data.(metricdata.Gauge[int64]); ok && len(g.DataPoints) > 0 {
 				t.Errorf("expected no data points with nil snapshot, got %d", len(g.DataPoints))
 			}
@@ -262,7 +262,7 @@ func TestFitnessAgeCollector_EmitsFromSnapshot(t *testing.T) {
 		},
 	}}
 
-	g, err := collector.NewGroup(discardLogger(), "fitnessage")
+	g, err := collector.NewGroup(discardLogger(), "fitness_age")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestClose_NoError(t *testing.T) {
 	meter, _ := setupMeter(t)
 	src := &staticSource{}
 
-	g, err := collector.NewGroup(discardLogger(), "heartrate")
+	g, err := collector.NewGroup(discardLogger(), "heart_rate")
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
@@ -390,7 +390,6 @@ func TestSleepCollector_EmitsScoresAndNeed(t *testing.T) {
 			},
 			SleepNeed: &garminconnect.SleepNeed{Baseline: 480, Actual: 500},
 		},
-		RestingHeartRate:  47,
 		BodyBatteryChange: 63,
 	}}}}
 
@@ -413,11 +412,10 @@ func TestSleepCollector_EmitsScoresAndNeed(t *testing.T) {
 		t.Errorf("score has %d data points, want 2 (components without a value are skipped)", n)
 	}
 	for name, want := range map[string]int64{
-		"garmin.sleep.need_baseline_minutes":  480,
-		"garmin.sleep.need_actual_minutes":    500,
-		"garmin.sleep.resting_heart_rate_bpm": 47,
-		"garmin.sleep.body_battery_change":    63,
-		"garmin.sleep.awake_count":            2,
+		"garmin.sleep.need_baseline_seconds": 28800,
+		"garmin.sleep.need_actual_seconds":   30000,
+		"garmin.sleep.body_battery_change":   63,
+		"garmin.sleep.awakenings":            2,
 	} {
 		if got := gaugeValue[int64](t, m, name); got != want {
 			t.Errorf("%s = %d, want %d", name, got, want)

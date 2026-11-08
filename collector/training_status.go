@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("trainingstatus", newTrainingStatusCollector)
+	registerCollector("training_status", newTrainingStatusCollector)
 }
 
 type trainingStatusCollector struct {
@@ -34,59 +34,59 @@ func newTrainingStatusCollector(log *slog.Logger) (Collector, error) {
 	return &trainingStatusCollector{log: log}, nil
 }
 
-func (c *trainingStatusCollector) Name() string { return "trainingstatus" }
+func (c *trainingStatusCollector) Name() string { return "training_status" }
 
 func (c *trainingStatusCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
 
 	var err error
 	if c.status, err = meter.Int64ObservableGauge(
-		"garmin.trainingstatus.status",
-		metric.WithDescription("Training status code from primary device (see Garmin Connect API docs)."),
+		"garmin.training_status.code",
+		metric.WithDescription("Garmin training status code from the primary device."),
 	); err != nil {
 		return err
 	}
 	if c.weeklyLoad, err = meter.Float64ObservableGauge(
-		"garmin.trainingstatus.weekly_training_load",
+		"garmin.training_status.weekly_training_load",
 		metric.WithDescription("Weekly training load from the primary device."),
 	); err != nil {
 		return err
 	}
 	if c.acwrPercent, err = meter.Int64ObservableGauge(
-		"garmin.trainingstatus.acwr_percent",
+		"garmin.training_status.acwr_percent",
 		metric.WithDescription("Acute:chronic workload ratio as a percentage."),
 		metric.WithUnit("%"),
 	); err != nil {
 		return err
 	}
 	if c.acwrRatio, err = meter.Float64ObservableGauge(
-		"garmin.trainingstatus.acwr_ratio",
+		"garmin.training_status.acwr_ratio",
 		metric.WithDescription("Daily acute:chronic workload ratio."),
 		metric.WithUnit("{ratio}"),
 	); err != nil {
 		return err
 	}
 	if c.aerobicLowLoad, err = meter.Float64ObservableGauge(
-		"garmin.trainingstatus.aerobic_low_monthly_load",
+		"garmin.training_status.aerobic_low_monthly_load",
 		metric.WithDescription("Monthly aerobic low-intensity training load."),
 	); err != nil {
 		return err
 	}
 	if c.aerobicHighLoad, err = meter.Float64ObservableGauge(
-		"garmin.trainingstatus.aerobic_high_monthly_load",
+		"garmin.training_status.aerobic_high_monthly_load",
 		metric.WithDescription("Monthly aerobic high-intensity training load."),
 	); err != nil {
 		return err
 	}
 	if c.anaerobicLoad, err = meter.Float64ObservableGauge(
-		"garmin.trainingstatus.anaerobic_monthly_load",
+		"garmin.training_status.anaerobic_monthly_load",
 		metric.WithDescription("Monthly anaerobic training load."),
 	); err != nil {
 		return err
 	}
 
 	if c.paused, err = meter.Int64ObservableGauge(
-		"garmin.trainingstatus.paused",
+		"garmin.training_status.paused",
 		metric.WithDescription("1 if training status is paused (e.g. illness or rest), 0 otherwise."),
 	); err != nil {
 		return err

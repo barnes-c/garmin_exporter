@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerCollector("bloodpressure", newBloodPressureCollector)
+	registerCollector("blood_pressure", newBloodPressureCollector)
 }
 
 type bloodPressureCollector struct {
@@ -28,7 +28,7 @@ func newBloodPressureCollector(log *slog.Logger) (Collector, error) {
 	return &bloodPressureCollector{log: log}, nil
 }
 
-func (c *bloodPressureCollector) Name() string { return "bloodpressure" }
+func (c *bloodPressureCollector) Name() string { return "blood_pressure" }
 
 func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
@@ -37,7 +37,6 @@ func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source)
 	c.systolic, err = meter.Int64ObservableGauge(
 		"garmin.blood_pressure.systolic_mmhg",
 		metric.WithDescription("Most recent systolic blood pressure in mmHg."),
-		metric.WithUnit("mm[Hg]"),
 	)
 	if err != nil {
 		return err
@@ -45,7 +44,6 @@ func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source)
 	c.diastolic, err = meter.Int64ObservableGauge(
 		"garmin.blood_pressure.diastolic_mmhg",
 		metric.WithDescription("Most recent diastolic blood pressure in mmHg."),
-		metric.WithUnit("mm[Hg]"),
 	)
 	if err != nil {
 		return err
@@ -53,7 +51,6 @@ func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source)
 	c.pulse, err = meter.Int64ObservableGauge(
 		"garmin.blood_pressure.pulse_bpm",
 		metric.WithDescription("Most recent pulse from blood pressure reading in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err

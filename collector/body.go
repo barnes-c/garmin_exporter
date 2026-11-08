@@ -97,7 +97,6 @@ func (c *bodyCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.metabolicAge, err = meter.Float64ObservableGauge(
 		"garmin.body.metabolic_age_years",
 		metric.WithDescription("Metabolic age in years."),
-		metric.WithUnit("a"),
 	)
 	if err != nil {
 		return err

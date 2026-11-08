@@ -38,7 +38,6 @@ func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.intakeML, err = meter.Float64ObservableGauge(
 		"garmin.hydration.intake_ml",
 		metric.WithDescription("Total hydration intake in millilitres."),
-		metric.WithUnit("mL"),
 	)
 	if err != nil {
 		return err
@@ -46,7 +45,6 @@ func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.goalML, err = meter.Float64ObservableGauge(
 		"garmin.hydration.goal_ml",
 		metric.WithDescription("Daily hydration goal in millilitres."),
-		metric.WithUnit("mL"),
 	)
 	if err != nil {
 		return err
@@ -54,7 +52,6 @@ func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.dailyAvgML, err = meter.Float64ObservableGauge(
 		"garmin.hydration.daily_avg_ml",
 		metric.WithDescription("Daily average hydration intake in millilitres."),
-		metric.WithUnit("mL"),
 	)
 	if err != nil {
 		return err
@@ -62,7 +59,6 @@ func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.sweatLossML, err = meter.Float64ObservableGauge(
 		"garmin.hydration.sweat_loss_ml",
 		metric.WithDescription("Estimated sweat loss in millilitres."),
-		metric.WithUnit("mL"),
 	)
 	if err != nil {
 		return err
@@ -70,7 +66,6 @@ func (c *hydrationCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.activityIntake, err = meter.Float64ObservableGauge(
 		"garmin.hydration.activity_intake_ml",
 		metric.WithDescription("Hydration intake during activities in millilitres."),
-		metric.WithUnit("mL"),
 	)
 	if err != nil {
 		return err

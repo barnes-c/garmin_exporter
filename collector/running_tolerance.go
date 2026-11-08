@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("runningtolerance", newRunningToleranceCollector)
+	registerCollector("running_tolerance", newRunningToleranceCollector)
 }
 
 type runningToleranceCollector struct {
@@ -26,21 +26,21 @@ func newRunningToleranceCollector(log *slog.Logger) (Collector, error) {
 	return &runningToleranceCollector{log: log}, nil
 }
 
-func (c *runningToleranceCollector) Name() string { return "runningtolerance" }
+func (c *runningToleranceCollector) Name() string { return "running_tolerance" }
 
 func (c *runningToleranceCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
 
 	var err error
 	c.score, err = meter.Float64ObservableGauge(
-		"garmin.runningtolerance.score",
+		"garmin.running_tolerance.score",
 		metric.WithDescription("Running tolerance score."),
 	)
 	if err != nil {
 		return err
 	}
 	c.level, err = meter.Int64ObservableGauge(
-		"garmin.runningtolerance.level",
+		"garmin.running_tolerance.level",
 		metric.WithDescription("Running tolerance level."),
 	)
 	if err != nil {

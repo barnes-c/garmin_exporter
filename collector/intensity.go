@@ -42,7 +42,7 @@ func (c *intensityCollector) Register(meter metric.Meter, src garmin.Source) err
 		return err
 	}
 	c.moderateMins, err = meter.Int64ObservableGauge(
-		"garmin.intensity.moderate_minutes_total",
+		"garmin.intensity.weekly_moderate_minutes",
 		metric.WithDescription("Cumulative moderate intensity minutes this week."),
 		metric.WithUnit("min"),
 	)
@@ -50,7 +50,7 @@ func (c *intensityCollector) Register(meter metric.Meter, src garmin.Source) err
 		return err
 	}
 	c.vigorousMins, err = meter.Int64ObservableGauge(
-		"garmin.intensity.vigorous_minutes_total",
+		"garmin.intensity.weekly_vigorous_minutes",
 		metric.WithDescription("Cumulative vigorous intensity minutes this week."),
 		metric.WithUnit("min"),
 	)
