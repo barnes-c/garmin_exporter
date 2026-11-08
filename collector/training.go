@@ -104,9 +104,8 @@ func (c *trainingCollector) observe(_ context.Context, o metric.Observer) error 
 	for _, r := range t.Readiness {
 		if r.Score > 0 {
 			o.ObserveInt64(c.readinessScore, int64(r.Score))
-			if r.RecoveryTime > 0 {
-				o.ObserveInt64(c.readinessRecovery, int64(r.RecoveryTime)*60) // Garmin reports minutes
-			}
+			// 0 means fully recovered, so report it too.
+			o.ObserveInt64(c.readinessRecovery, int64(r.RecoveryTime)*60) // Garmin reports minutes
 			for factor, pct := range map[string]int{
 				"sleep_score":    r.SleepScoreFactorPercent,
 				"sleep_history":  r.SleepHistoryScore,

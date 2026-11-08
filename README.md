@@ -147,7 +147,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.lactate_threshold.running_speed_mps`                   | `lactate_threshold` |
 | `garmin.lactate_threshold.running_heart_rate_bpm`              | `lactate_threshold` |
 | `garmin.lactate_threshold.cycling_heart_rate_bpm`              | `lactate_threshold` |
-| `garmin.personal_records.value` (`pr_type`, `name`)            | `personal_records`  |
+| `garmin.personal_records.value` (`pr_type`)                    | `personal_records`  |
 | `garmin.respiration.avg_waking_bpm`                            | `respiration`       |
 | `garmin.respiration.highest_bpm`                               | `respiration`       |
 | `garmin.respiration.lowest_bpm`                                | `respiration`       |

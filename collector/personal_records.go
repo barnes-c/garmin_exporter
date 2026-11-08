@@ -3,6 +3,8 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -49,13 +51,31 @@ func (c *personalRecordsCollector) observe(_ context.Context, o metric.Observer)
 	if snap == nil {
 		return nil
 	}
+	keys := make(map[int64]string, len(snap.PersonalRecordTypes))
+	for _, t := range snap.PersonalRecordTypes {
+		keys[int64(t.ID)] = t.Key
+	}
 	for _, r := range snap.PersonalRecords {
-		if r.PrTypeLabelKey == "" || r.Value == 0 {
+		if r.Value == 0 {
 			continue
 		}
 		o.ObserveFloat64(c.value, r.Value, metric.WithAttributes(
-			attribute.String("pr_type", r.PrTypeLabelKey),
+			attribute.String("pr_type", prType(r.TypeID, r.PrTypeLabelKey, keys)),
 		))
 	}
 	return nil
+}
+
+// prType names a record by Garmin's type key ("pr.label.5k.run" -> "5k.run").
+// Records rarely carry the key themselves, so it comes from the type list,
+// falling back to the numeric type ID.
+func prType(id int64, labelKey string, keys map[int64]string) string {
+	key := keys[id]
+	if key == "" {
+		key = labelKey
+	}
+	if key == "" {
+		return "type_" + strconv.FormatInt(id, 10)
+	}
+	return strings.TrimPrefix(key, "pr.label.")
 }
