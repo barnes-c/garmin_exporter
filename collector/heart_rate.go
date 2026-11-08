@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("heartrate", newHeartRateCollector)
+	registerCollector("heart_rate", newHeartRateCollector)
 }
 
 type heartRateCollector struct {
@@ -28,35 +28,35 @@ func newHeartRateCollector(log *slog.Logger) (Collector, error) {
 	return &heartRateCollector{log: log}, nil
 }
 
-func (c *heartRateCollector) Name() string { return "heartrate" }
+func (c *heartRateCollector) Name() string { return "heart_rate" }
 
 func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
 
 	var err error
 	c.resting, err = meter.Int64ObservableGauge(
-		"garmin.heartrate.resting_bpm",
+		"garmin.heart_rate.resting_bpm",
 		metric.WithDescription("Resting heart rate in bpm."),
 	)
 	if err != nil {
 		return err
 	}
 	c.min, err = meter.Int64ObservableGauge(
-		"garmin.heartrate.min_bpm",
+		"garmin.heart_rate.min_bpm",
 		metric.WithDescription("Minimum heart rate in bpm."),
 	)
 	if err != nil {
 		return err
 	}
 	c.max, err = meter.Int64ObservableGauge(
-		"garmin.heartrate.max_bpm",
+		"garmin.heart_rate.max_bpm",
 		metric.WithDescription("Maximum heart rate in bpm."),
 	)
 	if err != nil {
 		return err
 	}
 	c.sevenDayAvg, err = meter.Int64ObservableGauge(
-		"garmin.heartrate.seven_day_avg_resting_bpm",
+		"garmin.heart_rate.seven_day_avg_resting_bpm",
 		metric.WithDescription("7-day average resting heart rate in bpm."),
 	)
 	if err != nil {

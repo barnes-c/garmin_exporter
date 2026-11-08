@@ -36,7 +36,6 @@ type sleepCollector struct {
 	score                    metric.Int64ObservableGauge
 	needBaseline             metric.Int64ObservableGauge
 	needActual               metric.Int64ObservableGauge
-	restingHeartRate         metric.Int64ObservableGauge
 	avgHeartRate             metric.Float64ObservableGauge
 	bodyBatteryChange        metric.Int64ObservableGauge
 	awakeCount               metric.Int64ObservableGauge
@@ -85,7 +84,7 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.awakeSeconds, err = intGauge("garmin.sleep.awake_seconds", "Awake time during sleep period in seconds.", "s"); err != nil {
 		return err
 	}
-	if c.restlessMoments, err = intGauge("garmin.sleep.restless_moments_total", "Number of restless moments during sleep.", "{moment}"); err != nil {
+	if c.restlessMoments, err = intGauge("garmin.sleep.restless_moments", "Number of restless moments during sleep.", "{moment}"); err != nil {
 		return err
 	}
 	if c.avgRespiration, err = floatGauge("garmin.sleep.avg_respiration_bpm", "Average respiration rate during sleep.", ""); err != nil {
@@ -112,13 +111,10 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.score, err = intGauge("garmin.sleep.score", "Sleep score (0-100), overall and per stage.", "{score}"); err != nil {
 		return err
 	}
-	if c.needBaseline, err = intGauge("garmin.sleep.need_baseline_minutes", "Baseline sleep need in minutes.", "min"); err != nil {
+	if c.needBaseline, err = intGauge("garmin.sleep.need_baseline_seconds", "Baseline sleep need in seconds.", "s"); err != nil {
 		return err
 	}
-	if c.needActual, err = intGauge("garmin.sleep.need_actual_minutes", "Sleep need for the night, adjusted for training, HRV and naps, in minutes.", "min"); err != nil {
-		return err
-	}
-	if c.restingHeartRate, err = intGauge("garmin.sleep.resting_heart_rate_bpm", "Resting heart rate during sleep.", ""); err != nil {
+	if c.needActual, err = intGauge("garmin.sleep.need_actual_seconds", "Sleep need for the night, adjusted for training, HRV and naps, in seconds.", "s"); err != nil {
 		return err
 	}
 	if c.avgHeartRate, err = floatGauge("garmin.sleep.avg_heart_rate_bpm", "Average heart rate during sleep.", ""); err != nil {
@@ -127,7 +123,7 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.bodyBatteryChange, err = intGauge("garmin.sleep.body_battery_change", "Body battery change during sleep.", "{level}"); err != nil {
 		return err
 	}
-	if c.awakeCount, err = intGauge("garmin.sleep.awake_count", "Number of times awake during sleep.", "{wake}"); err != nil {
+	if c.awakeCount, err = intGauge("garmin.sleep.awakenings", "Number of times awake during sleep.", "{wake}"); err != nil {
 		return err
 	}
 	if c.hrvWeeklyAvg, err = intGauge("garmin.sleep.hrv_weekly_avg_ms", "7-day average HRV in ms.", ""); err != nil {
@@ -153,7 +149,7 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 		c.sleepSeconds, c.napSeconds, c.deepSleepSeconds, c.lightSleepSeconds, c.remSleepSeconds, c.awakeSeconds, c.restlessMoments,
 		c.avgRespiration, c.lowestRespiration, c.highestRespiration, c.avgStress,
 		c.spO2Avg, c.spO2Low, c.spO2High,
-		c.score, c.needBaseline, c.needActual, c.restingHeartRate, c.avgHeartRate, c.bodyBatteryChange, c.awakeCount,
+		c.score, c.needBaseline, c.needActual, c.avgHeartRate, c.bodyBatteryChange, c.awakeCount,
 		c.hrvWeeklyAvg, c.hrvLastNight, c.hrvLastNight5MinHigh,
 		c.hrvBaselineLowUpper, c.hrvBaselineBalancedLow, c.hrvBaselineBalancedUpper,
 	)
@@ -203,8 +199,8 @@ func (c *sleepCollector) observe(_ context.Context, o metric.Observer) error {
 			}
 		}
 		if dto.SleepNeed != nil && dto.SleepNeed.Actual > 0 {
-			o.ObserveInt64(c.needBaseline, int64(dto.SleepNeed.Baseline))
-			o.ObserveInt64(c.needActual, int64(dto.SleepNeed.Actual))
+			o.ObserveInt64(c.needBaseline, int64(dto.SleepNeed.Baseline)*60) // Garmin reports minutes
+			o.ObserveInt64(c.needActual, int64(dto.SleepNeed.Actual)*60)
 		}
 		if dto.SleepTimeSeconds > 0 {
 			o.ObserveInt64(c.awakeCount, int64(dto.AwakeCount))
@@ -212,9 +208,6 @@ func (c *sleepCollector) observe(_ context.Context, o metric.Observer) error {
 		}
 		if dto.AvgHeartRate > 0 {
 			o.ObserveFloat64(c.avgHeartRate, dto.AvgHeartRate)
-		}
-		if s.RestingHeartRate > 0 {
-			o.ObserveInt64(c.restingHeartRate, int64(s.RestingHeartRate))
 		}
 	}
 	if snap.Sleep.HRV != nil {

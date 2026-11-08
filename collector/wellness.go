@@ -19,42 +19,35 @@ type wellnessCollector struct {
 	log *slog.Logger
 	src garmin.Source
 
-	totalKilocalories       metric.Float64ObservableGauge
-	activeKilocalories      metric.Float64ObservableGauge
-	bmrKilocalories         metric.Float64ObservableGauge
-	totalSteps              metric.Int64ObservableGauge
-	stepGoal                metric.Int64ObservableGauge
-	totalDistanceMeters     metric.Float64ObservableGauge
-	highlyActiveSeconds     metric.Int64ObservableGauge
-	activeSeconds           metric.Int64ObservableGauge
-	sedentarySeconds        metric.Int64ObservableGauge
-	sleepingSeconds         metric.Int64ObservableGauge
-	moderateIntensityMins   metric.Int64ObservableGauge
-	vigorousIntensityMins   metric.Int64ObservableGauge
-	floorsAscended          metric.Float64ObservableGauge
-	floorsDescended         metric.Float64ObservableGauge
-	floorsAscendedGoal      metric.Float64ObservableGauge
-	minHeartRate            metric.Int64ObservableGauge
-	maxHeartRate            metric.Int64ObservableGauge
-	restingHeartRate        metric.Int64ObservableGauge
-	avgRestingHeartRate7Day metric.Int64ObservableGauge
-	avgWakingRespiration    metric.Float64ObservableGauge
-	highestRespiration      metric.Float64ObservableGauge
-	lowestRespiration       metric.Float64ObservableGauge
-	highStressDuration      metric.Int64ObservableGauge
-	lowStressDuration       metric.Int64ObservableGauge
-	restStressDuration      metric.Int64ObservableGauge
-	mediumStressDuration    metric.Int64ObservableGauge
-	activityStressDuration  metric.Int64ObservableGauge
-	totalStressDuration     metric.Int64ObservableGauge
-	stressTimePercent       metric.Float64ObservableGauge
-	bodyBatteryAtWake       metric.Int64ObservableGauge
-	bodyBatteryDuringSleep  metric.Int64ObservableGauge
-	bodyBatteryCharged      metric.Int64ObservableGauge
-	bodyBatteryDrained      metric.Int64ObservableGauge
-	bodyBatteryHighest      metric.Int64ObservableGauge
-	bodyBatteryLowest       metric.Int64ObservableGauge
-	bodyBatteryLatest       metric.Int64ObservableGauge
+	totalKilocalories      metric.Float64ObservableGauge
+	activeKilocalories     metric.Float64ObservableGauge
+	bmrKilocalories        metric.Float64ObservableGauge
+	totalSteps             metric.Int64ObservableGauge
+	stepGoal               metric.Int64ObservableGauge
+	totalDistanceMeters    metric.Float64ObservableGauge
+	highlyActiveSeconds    metric.Int64ObservableGauge
+	activeSeconds          metric.Int64ObservableGauge
+	sedentarySeconds       metric.Int64ObservableGauge
+	sleepingSeconds        metric.Int64ObservableGauge
+	moderateIntensityMins  metric.Int64ObservableGauge
+	vigorousIntensityMins  metric.Int64ObservableGauge
+	floorsAscended         metric.Float64ObservableGauge
+	floorsDescended        metric.Float64ObservableGauge
+	floorsAscendedGoal     metric.Float64ObservableGauge
+	highStressDuration     metric.Int64ObservableGauge
+	lowStressDuration      metric.Int64ObservableGauge
+	restStressDuration     metric.Int64ObservableGauge
+	mediumStressDuration   metric.Int64ObservableGauge
+	activityStressDuration metric.Int64ObservableGauge
+	totalStressDuration    metric.Int64ObservableGauge
+	stressTimePercent      metric.Float64ObservableGauge
+	bodyBatteryAtWake      metric.Int64ObservableGauge
+	bodyBatteryDuringSleep metric.Int64ObservableGauge
+	bodyBatteryCharged     metric.Int64ObservableGauge
+	bodyBatteryDrained     metric.Int64ObservableGauge
+	bodyBatteryHighest     metric.Int64ObservableGauge
+	bodyBatteryLowest      metric.Int64ObservableGauge
+	bodyBatteryLatest      metric.Int64ObservableGauge
 }
 
 func newWellnessCollector(log *slog.Logger) (Collector, error) {
@@ -121,27 +114,6 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.floorsAscendedGoal, err = floatGauge("garmin.wellness.floors_ascended_goal", "Daily floors ascended goal.", "{floor}"); err != nil {
 		return err
 	}
-	if c.minHeartRate, err = intGauge("garmin.wellness.min_heart_rate_bpm", "Minimum heart rate in bpm.", ""); err != nil {
-		return err
-	}
-	if c.maxHeartRate, err = intGauge("garmin.wellness.max_heart_rate_bpm", "Maximum heart rate in bpm.", ""); err != nil {
-		return err
-	}
-	if c.restingHeartRate, err = intGauge("garmin.wellness.resting_heart_rate_bpm", "Resting heart rate in bpm.", ""); err != nil {
-		return err
-	}
-	if c.avgRestingHeartRate7Day, err = intGauge("garmin.wellness.avg_resting_heart_rate_7day_bpm", "7-day average resting heart rate in bpm.", ""); err != nil {
-		return err
-	}
-	if c.avgWakingRespiration, err = floatGauge("garmin.wellness.avg_waking_respiration_bpm", "Average waking respiration rate.", ""); err != nil {
-		return err
-	}
-	if c.highestRespiration, err = floatGauge("garmin.wellness.highest_respiration_bpm", "Highest respiration rate.", ""); err != nil {
-		return err
-	}
-	if c.lowestRespiration, err = floatGauge("garmin.wellness.lowest_respiration_bpm", "Lowest respiration rate.", ""); err != nil {
-		return err
-	}
 	if c.highStressDuration, err = intGauge("garmin.wellness.high_stress_duration_seconds", "High stress duration in seconds.", "s"); err != nil {
 		return err
 	}
@@ -157,7 +129,7 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.activityStressDuration, err = intGauge("garmin.wellness.activity_stress_duration_seconds", "Time during activities, when stress isn't measured, in seconds.", "s"); err != nil {
 		return err
 	}
-	if c.totalStressDuration, err = intGauge("garmin.wellness.total_stress_duration_seconds", "Total time with a stress measurement in seconds.", "s"); err != nil {
+	if c.totalStressDuration, err = intGauge("garmin.wellness.total_stress_duration_seconds", "Total stress-tracked time in seconds (all levels, including activity and uncategorized).", "s"); err != nil {
 		return err
 	}
 	if c.stressTimePercent, err = meter.Float64ObservableGauge("garmin.wellness.stress_time_percent",
@@ -192,8 +164,7 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 		c.highlyActiveSeconds, c.activeSeconds, c.sedentarySeconds, c.sleepingSeconds,
 		c.moderateIntensityMins, c.vigorousIntensityMins,
 		c.floorsAscended, c.floorsDescended, c.floorsAscendedGoal,
-		c.minHeartRate, c.maxHeartRate, c.restingHeartRate, c.avgRestingHeartRate7Day,
-		c.avgWakingRespiration, c.highestRespiration, c.lowestRespiration,
+
 		c.highStressDuration, c.lowStressDuration, c.restStressDuration,
 		c.mediumStressDuration, c.activityStressDuration, c.totalStressDuration, c.stressTimePercent,
 		c.bodyBatteryAtWake, c.bodyBatteryDuringSleep,
@@ -223,27 +194,6 @@ func (c *wellnessCollector) observe(_ context.Context, o metric.Observer) error 
 	o.ObserveFloat64(c.floorsAscended, s.FloorsAscended)
 	o.ObserveFloat64(c.floorsDescended, s.FloorsDescended)
 	o.ObserveFloat64(c.floorsAscendedGoal, s.FloorsAscendedGoal)
-	if s.MinHeartRate > 0 {
-		o.ObserveInt64(c.minHeartRate, int64(s.MinHeartRate))
-	}
-	if s.MaxHeartRate > 0 {
-		o.ObserveInt64(c.maxHeartRate, int64(s.MaxHeartRate))
-	}
-	if s.RestingHeartRate > 0 {
-		o.ObserveInt64(c.restingHeartRate, int64(s.RestingHeartRate))
-	}
-	if s.LastSevenDaysAvgRestingHeartRate > 0 {
-		o.ObserveInt64(c.avgRestingHeartRate7Day, int64(s.LastSevenDaysAvgRestingHeartRate))
-	}
-	if s.AvgWakingRespirationValue > 0 {
-		o.ObserveFloat64(c.avgWakingRespiration, s.AvgWakingRespirationValue)
-	}
-	if s.HighestRespirationValue > 0 {
-		o.ObserveFloat64(c.highestRespiration, s.HighestRespirationValue)
-	}
-	if s.LowestRespirationValue > 0 {
-		o.ObserveFloat64(c.lowestRespiration, s.LowestRespirationValue)
-	}
 	o.ObserveInt64(c.highStressDuration, int64(s.HighStressDuration))
 	o.ObserveInt64(c.lowStressDuration, int64(s.LowStressDuration))
 	o.ObserveInt64(c.restStressDuration, int64(s.RestStressDuration))

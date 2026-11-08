@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("bodycomposition", newBodyCompositionCollector)
+	registerCollector("body_composition", newBodyCompositionCollector)
 }
 
 type bodyCompositionCollector struct {
@@ -32,7 +32,7 @@ func newBodyCompositionCollector(log *slog.Logger) (Collector, error) {
 	return &bodyCompositionCollector{log: log}, nil
 }
 
-func (c *bodyCompositionCollector) Name() string { return "bodycomposition" }
+func (c *bodyCompositionCollector) Name() string { return "body_composition" }
 
 func (c *bodyCompositionCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src

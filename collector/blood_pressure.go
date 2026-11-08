@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerCollector("bloodpressure", newBloodPressureCollector)
+	registerCollector("blood_pressure", newBloodPressureCollector)
 }
 
 type bloodPressureCollector struct {
@@ -28,7 +28,7 @@ func newBloodPressureCollector(log *slog.Logger) (Collector, error) {
 	return &bloodPressureCollector{log: log}, nil
 }
 
-func (c *bloodPressureCollector) Name() string { return "bloodpressure" }
+func (c *bloodPressureCollector) Name() string { return "blood_pressure" }
 
 func (c *bloodPressureCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src

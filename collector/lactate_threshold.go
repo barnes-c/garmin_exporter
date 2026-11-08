@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registerCollector("lactatethreshold", newLactateThresholdCollector)
+	registerCollector("lactate_threshold", newLactateThresholdCollector)
 }
 
 type lactateThresholdCollector struct {
@@ -27,28 +27,28 @@ func newLactateThresholdCollector(log *slog.Logger) (Collector, error) {
 	return &lactateThresholdCollector{log: log}, nil
 }
 
-func (c *lactateThresholdCollector) Name() string { return "lactatethreshold" }
+func (c *lactateThresholdCollector) Name() string { return "lactate_threshold" }
 
 func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
 
 	var err error
 	c.runningSpeedMPS, err = meter.Float64ObservableGauge(
-		"garmin.lactatethreshold.running_speed_mps",
+		"garmin.lactate_threshold.running_speed_mps",
 		metric.WithDescription("Running lactate threshold speed in meters per second."),
 	)
 	if err != nil {
 		return err
 	}
 	c.runningHeartRate, err = meter.Int64ObservableGauge(
-		"garmin.lactatethreshold.running_heart_rate_bpm",
+		"garmin.lactate_threshold.running_heart_rate_bpm",
 		metric.WithDescription("Running lactate threshold heart rate in bpm."),
 	)
 	if err != nil {
 		return err
 	}
 	c.cyclingHeartRate, err = meter.Int64ObservableGauge(
-		"garmin.lactatethreshold.cycling_heart_rate_bpm",
+		"garmin.lactate_threshold.cycling_heart_rate_bpm",
 		metric.WithDescription("Cycling lactate threshold heart rate in bpm."),
 	)
 	if err != nil {

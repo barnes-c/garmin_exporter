@@ -33,7 +33,7 @@ func (c *goalsCollector) Register(meter metric.Meter, src garmin.Source) error {
 
 	var err error
 	c.activeGoals, err = meter.Int64ObservableGauge(
-		"garmin.goals.active_total",
+		"garmin.goals.active",
 		metric.WithDescription("Number of active fitness goals."),
 		metric.WithUnit("{goal}"),
 	)
@@ -41,7 +41,7 @@ func (c *goalsCollector) Register(meter metric.Meter, src garmin.Source) error {
 		return err
 	}
 	c.earnedBadges, err = meter.Int64ObservableGauge(
-		"garmin.goals.earned_badges_total",
+		"garmin.goals.earned_badges",
 		metric.WithDescription("Total number of earned achievement badges."),
 		metric.WithUnit("{badge}"),
 	)

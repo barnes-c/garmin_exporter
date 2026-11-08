@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registerCollector("fitnessage", newFitnessAgeCollector)
+	registerCollector("fitness_age", newFitnessAgeCollector)
 }
 
 type fitnessAgeCollector struct {
@@ -31,7 +31,7 @@ func newFitnessAgeCollector(log *slog.Logger) (Collector, error) {
 	return &fitnessAgeCollector{log: log}, nil
 }
 
-func (c *fitnessAgeCollector) Name() string { return "fitnessage" }
+func (c *fitnessAgeCollector) Name() string { return "fitness_age" }
 
 func (c *fitnessAgeCollector) Register(meter metric.Meter, src garmin.Source) error {
 	c.src = src
