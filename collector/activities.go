@@ -62,21 +62,18 @@ func (c *activitiesCollector) Register(meter metric.Meter, src garmin.Source) er
 	if c.caloriesTotal, err = meter.Float64ObservableGauge(
 		"garmin.activity.calories_total",
 		metric.WithDescription("Sum of activity calories."),
-		metric.WithUnit("kcal"),
 	); err != nil {
 		return err
 	}
 	if c.lastTimestamp, err = meter.Int64ObservableGauge(
 		"garmin.activity.last_timestamp_seconds",
 		metric.WithDescription("Unix timestamp of the most recent activity of this type."),
-		metric.WithUnit("s"),
 	); err != nil {
 		return err
 	}
 	if c.lifetimeCount, err = meter.Int64ObservableGauge(
 		"garmin.activity.lifetime_count",
 		metric.WithDescription("Total number of activities ever recorded."),
-		metric.WithUnit("{activity}"),
 	); err != nil {
 		return err
 	}

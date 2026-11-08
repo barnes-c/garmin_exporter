@@ -63,19 +63,19 @@ func (c *trainingCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.readinessRecovery, err = intGauge("garmin.training.readiness_recovery_minutes", "Recovery time in minutes.", "min"); err != nil {
 		return err
 	}
-	if c.readinessHRVAvg, err = intGauge("garmin.training.readiness_hrv_weekly_avg_ms", "HRV weekly average used in readiness score.", "ms"); err != nil {
+	if c.readinessHRVAvg, err = intGauge("garmin.training.readiness_hrv_weekly_avg_ms", "HRV weekly average used in readiness score.", ""); err != nil {
 		return err
 	}
 	if c.readinessFactor, err = intGauge("garmin.training.readiness_factor_percent", "Contribution of each factor to training readiness, in percent.", "%"); err != nil {
 		return err
 	}
-	if c.vo2maxGeneric, err = floatGauge("garmin.training.vo2max_generic", "VO2 Max for running/generic activities.", "mL/min/kg"); err != nil {
+	if c.vo2maxGeneric, err = floatGauge("garmin.training.vo2max_generic", "VO2 Max for running/generic activities.", ""); err != nil {
 		return err
 	}
-	if c.vo2maxCycling, err = floatGauge("garmin.training.vo2max_cycling", "VO2 Max for cycling activities.", "mL/min/kg"); err != nil {
+	if c.vo2maxCycling, err = floatGauge("garmin.training.vo2max_cycling", "VO2 Max for cycling activities.", ""); err != nil {
 		return err
 	}
-	if c.fitnessAge, err = intGauge("garmin.training.fitness_age_years", "Estimated fitness age in years.", "a"); err != nil {
+	if c.fitnessAge, err = intGauge("garmin.training.fitness_age_years", "Estimated fitness age in years.", ""); err != nil {
 		return err
 	}
 	if c.race5KSeconds, err = intGauge("garmin.training.race_prediction_5k_seconds", "Predicted 5K finish time in seconds.", "s"); err != nil {

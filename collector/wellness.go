@@ -76,13 +76,13 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	}
 
 	var err error
-	if c.totalKilocalories, err = floatGauge("garmin.wellness.total_kilocalories", "Total kilocalories burned.", "kcal"); err != nil {
+	if c.totalKilocalories, err = floatGauge("garmin.wellness.total_kilocalories", "Total kilocalories burned.", ""); err != nil {
 		return err
 	}
-	if c.activeKilocalories, err = floatGauge("garmin.wellness.active_kilocalories", "Active kilocalories burned.", "kcal"); err != nil {
+	if c.activeKilocalories, err = floatGauge("garmin.wellness.active_kilocalories", "Active kilocalories burned.", ""); err != nil {
 		return err
 	}
-	if c.bmrKilocalories, err = floatGauge("garmin.wellness.bmr_kilocalories", "BMR kilocalories.", "kcal"); err != nil {
+	if c.bmrKilocalories, err = floatGauge("garmin.wellness.bmr_kilocalories", "BMR kilocalories.", ""); err != nil {
 		return err
 	}
 	if c.totalSteps, err = intGauge("garmin.wellness.total_steps", "Total steps for the day.", "{step}"); err != nil {
@@ -121,25 +121,25 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.floorsAscendedGoal, err = floatGauge("garmin.wellness.floors_ascended_goal", "Daily floors ascended goal.", "{floor}"); err != nil {
 		return err
 	}
-	if c.minHeartRate, err = intGauge("garmin.wellness.min_heart_rate_bpm", "Minimum heart rate in bpm.", "{beat}/min"); err != nil {
+	if c.minHeartRate, err = intGauge("garmin.wellness.min_heart_rate_bpm", "Minimum heart rate in bpm.", ""); err != nil {
 		return err
 	}
-	if c.maxHeartRate, err = intGauge("garmin.wellness.max_heart_rate_bpm", "Maximum heart rate in bpm.", "{beat}/min"); err != nil {
+	if c.maxHeartRate, err = intGauge("garmin.wellness.max_heart_rate_bpm", "Maximum heart rate in bpm.", ""); err != nil {
 		return err
 	}
-	if c.restingHeartRate, err = intGauge("garmin.wellness.resting_heart_rate_bpm", "Resting heart rate in bpm.", "{beat}/min"); err != nil {
+	if c.restingHeartRate, err = intGauge("garmin.wellness.resting_heart_rate_bpm", "Resting heart rate in bpm.", ""); err != nil {
 		return err
 	}
-	if c.avgRestingHeartRate7Day, err = intGauge("garmin.wellness.avg_resting_heart_rate_7day_bpm", "7-day average resting heart rate in bpm.", "{beat}/min"); err != nil {
+	if c.avgRestingHeartRate7Day, err = intGauge("garmin.wellness.avg_resting_heart_rate_7day_bpm", "7-day average resting heart rate in bpm.", ""); err != nil {
 		return err
 	}
-	if c.avgWakingRespiration, err = floatGauge("garmin.wellness.avg_waking_respiration_bpm", "Average waking respiration rate.", "{breath}/min"); err != nil {
+	if c.avgWakingRespiration, err = floatGauge("garmin.wellness.avg_waking_respiration_bpm", "Average waking respiration rate.", ""); err != nil {
 		return err
 	}
-	if c.highestRespiration, err = floatGauge("garmin.wellness.highest_respiration_bpm", "Highest respiration rate.", "{breath}/min"); err != nil {
+	if c.highestRespiration, err = floatGauge("garmin.wellness.highest_respiration_bpm", "Highest respiration rate.", ""); err != nil {
 		return err
 	}
-	if c.lowestRespiration, err = floatGauge("garmin.wellness.lowest_respiration_bpm", "Lowest respiration rate.", "{breath}/min"); err != nil {
+	if c.lowestRespiration, err = floatGauge("garmin.wellness.lowest_respiration_bpm", "Lowest respiration rate.", ""); err != nil {
 		return err
 	}
 	if c.highStressDuration, err = intGauge("garmin.wellness.high_stress_duration_seconds", "High stress duration in seconds.", "s"); err != nil {

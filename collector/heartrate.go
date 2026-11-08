@@ -37,7 +37,6 @@ func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.resting, err = meter.Int64ObservableGauge(
 		"garmin.heartrate.resting_bpm",
 		metric.WithDescription("Resting heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err
@@ -45,7 +44,6 @@ func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.min, err = meter.Int64ObservableGauge(
 		"garmin.heartrate.min_bpm",
 		metric.WithDescription("Minimum heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err
@@ -53,7 +51,6 @@ func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.max, err = meter.Int64ObservableGauge(
 		"garmin.heartrate.max_bpm",
 		metric.WithDescription("Maximum heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err
@@ -61,7 +58,6 @@ func (c *heartRateCollector) Register(meter metric.Meter, src garmin.Source) err
 	c.sevenDayAvg, err = meter.Int64ObservableGauge(
 		"garmin.heartrate.seven_day_avg_resting_bpm",
 		metric.WithDescription("7-day average resting heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err

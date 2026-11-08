@@ -36,7 +36,6 @@ func (c *respirationCollector) Register(meter metric.Meter, src garmin.Source) e
 	c.avgWaking, err = meter.Float64ObservableGauge(
 		"garmin.respiration.avg_waking_bpm",
 		metric.WithDescription("Average waking respiration rate in breaths per minute."),
-		metric.WithUnit("{breath}/min"),
 	)
 	if err != nil {
 		return err
@@ -44,7 +43,6 @@ func (c *respirationCollector) Register(meter metric.Meter, src garmin.Source) e
 	c.highest, err = meter.Float64ObservableGauge(
 		"garmin.respiration.highest_bpm",
 		metric.WithDescription("Highest respiration rate in breaths per minute."),
-		metric.WithUnit("{breath}/min"),
 	)
 	if err != nil {
 		return err
@@ -52,7 +50,6 @@ func (c *respirationCollector) Register(meter metric.Meter, src garmin.Source) e
 	c.lowest, err = meter.Float64ObservableGauge(
 		"garmin.respiration.lowest_bpm",
 		metric.WithDescription("Lowest respiration rate in breaths per minute."),
-		metric.WithUnit("{breath}/min"),
 	)
 	if err != nil {
 		return err

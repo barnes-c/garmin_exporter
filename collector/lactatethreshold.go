@@ -36,7 +36,6 @@ func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Sour
 	c.runningSpeedMPS, err = meter.Float64ObservableGauge(
 		"garmin.lactatethreshold.running_speed_mps",
 		metric.WithDescription("Running lactate threshold speed in meters per second."),
-		metric.WithUnit("m/s"),
 	)
 	if err != nil {
 		return err
@@ -44,7 +43,6 @@ func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Sour
 	c.runningHeartRate, err = meter.Int64ObservableGauge(
 		"garmin.lactatethreshold.running_heart_rate_bpm",
 		metric.WithDescription("Running lactate threshold heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err
@@ -52,7 +50,6 @@ func (c *lactateThresholdCollector) Register(meter metric.Meter, src garmin.Sour
 	c.cyclingHeartRate, err = meter.Int64ObservableGauge(
 		"garmin.lactatethreshold.cycling_heart_rate_bpm",
 		metric.WithDescription("Cycling lactate threshold heart rate in bpm."),
-		metric.WithUnit("{beat}/min"),
 	)
 	if err != nil {
 		return err

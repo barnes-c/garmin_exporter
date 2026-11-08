@@ -40,28 +40,24 @@ func (c *fitnessAgeCollector) Register(meter metric.Meter, src garmin.Source) er
 	if c.years, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.years",
 		metric.WithDescription("Estimated fitness age in years."),
-		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}
 	if c.chronological, err = meter.Int64ObservableGauge(
 		"garmin.fitness_age.chronological_years",
 		metric.WithDescription("Chronological (actual) age in years."),
-		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}
 	if c.achievable, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.achievable_years",
 		metric.WithDescription("Best achievable fitness age in years."),
-		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}
 	if c.previous, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.previous_years",
 		metric.WithDescription("Previous fitness age in years."),
-		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}
@@ -74,7 +70,6 @@ func (c *fitnessAgeCollector) Register(meter metric.Meter, src garmin.Source) er
 	if c.componentAge, err = meter.Float64ObservableGauge(
 		"garmin.fitness_age.component_potential_years",
 		metric.WithDescription("Potential fitness age if this factor were at target."),
-		metric.WithUnit("a"),
 	); err != nil {
 		return err
 	}

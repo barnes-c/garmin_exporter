@@ -84,7 +84,7 @@ The three exporter selectors default to `none` instead of the spec default `otlp
 
 ## Metrics
 
-All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. Attributes are noted in parentheses.
+All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. Attributes are noted in parentheses. In Prometheus the dots become underscores (`garmin.sleep.hrv_last_night_ms` is `garmin_sleep_hrv_last_night_ms`); names already state their unit, so no unit suffix is appended.
 
 |                             Metric                             |     Collector      |
 | -------------------------------------------------------------- | ------------------ |

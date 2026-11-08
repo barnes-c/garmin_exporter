@@ -97,7 +97,6 @@ func (c *bodyCompositionCollector) Register(meter metric.Meter, src garmin.Sourc
 	c.metabolicAge, err = meter.Float64ObservableGauge(
 		"garmin.body_composition.metabolic_age_years_avg",
 		metric.WithDescription("30-day average metabolic age in years."),
-		metric.WithUnit("a"),
 	)
 	if err != nil {
 		return err

@@ -88,13 +88,13 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.restlessMoments, err = intGauge("garmin.sleep.restless_moments_total", "Number of restless moments during sleep.", "{moment}"); err != nil {
 		return err
 	}
-	if c.avgRespiration, err = floatGauge("garmin.sleep.avg_respiration_bpm", "Average respiration rate during sleep.", "{breath}/min"); err != nil {
+	if c.avgRespiration, err = floatGauge("garmin.sleep.avg_respiration_bpm", "Average respiration rate during sleep.", ""); err != nil {
 		return err
 	}
-	if c.lowestRespiration, err = floatGauge("garmin.sleep.lowest_respiration_bpm", "Lowest respiration rate during sleep.", "{breath}/min"); err != nil {
+	if c.lowestRespiration, err = floatGauge("garmin.sleep.lowest_respiration_bpm", "Lowest respiration rate during sleep.", ""); err != nil {
 		return err
 	}
-	if c.highestRespiration, err = floatGauge("garmin.sleep.highest_respiration_bpm", "Highest respiration rate during sleep.", "{breath}/min"); err != nil {
+	if c.highestRespiration, err = floatGauge("garmin.sleep.highest_respiration_bpm", "Highest respiration rate during sleep.", ""); err != nil {
 		return err
 	}
 	if c.avgStress, err = floatGauge("garmin.sleep.avg_stress", "Average stress level during sleep.", "{score}"); err != nil {
@@ -118,10 +118,10 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.needActual, err = intGauge("garmin.sleep.need_actual_minutes", "Sleep need for the night, adjusted for training, HRV and naps, in minutes.", "min"); err != nil {
 		return err
 	}
-	if c.restingHeartRate, err = intGauge("garmin.sleep.resting_heart_rate_bpm", "Resting heart rate during sleep.", "{beat}/min"); err != nil {
+	if c.restingHeartRate, err = intGauge("garmin.sleep.resting_heart_rate_bpm", "Resting heart rate during sleep.", ""); err != nil {
 		return err
 	}
-	if c.avgHeartRate, err = floatGauge("garmin.sleep.avg_heart_rate_bpm", "Average heart rate during sleep.", "{beat}/min"); err != nil {
+	if c.avgHeartRate, err = floatGauge("garmin.sleep.avg_heart_rate_bpm", "Average heart rate during sleep.", ""); err != nil {
 		return err
 	}
 	if c.bodyBatteryChange, err = intGauge("garmin.sleep.body_battery_change", "Body battery change during sleep.", "{level}"); err != nil {
@@ -130,22 +130,22 @@ func (c *sleepCollector) Register(meter metric.Meter, src garmin.Source) error {
 	if c.awakeCount, err = intGauge("garmin.sleep.awake_count", "Number of times awake during sleep.", "{wake}"); err != nil {
 		return err
 	}
-	if c.hrvWeeklyAvg, err = intGauge("garmin.sleep.hrv_weekly_avg_ms", "7-day average HRV in ms.", "ms"); err != nil {
+	if c.hrvWeeklyAvg, err = intGauge("garmin.sleep.hrv_weekly_avg_ms", "7-day average HRV in ms.", ""); err != nil {
 		return err
 	}
-	if c.hrvLastNight, err = intGauge("garmin.sleep.hrv_last_night_ms", "Last night average HRV in ms.", "ms"); err != nil {
+	if c.hrvLastNight, err = intGauge("garmin.sleep.hrv_last_night_ms", "Last night average HRV in ms.", ""); err != nil {
 		return err
 	}
-	if c.hrvLastNight5MinHigh, err = intGauge("garmin.sleep.hrv_last_night_5min_high_ms", "Last night 5-minute high HRV in ms.", "ms"); err != nil {
+	if c.hrvLastNight5MinHigh, err = intGauge("garmin.sleep.hrv_last_night_5min_high_ms", "Last night 5-minute high HRV in ms.", ""); err != nil {
 		return err
 	}
-	if c.hrvBaselineLowUpper, err = intGauge("garmin.sleep.hrv_baseline_low_upper_ms", "HRV baseline low zone upper bound in ms.", "ms"); err != nil {
+	if c.hrvBaselineLowUpper, err = intGauge("garmin.sleep.hrv_baseline_low_upper_ms", "HRV baseline low zone upper bound in ms.", ""); err != nil {
 		return err
 	}
-	if c.hrvBaselineBalancedLow, err = intGauge("garmin.sleep.hrv_baseline_balanced_low_ms", "HRV baseline balanced zone lower bound in ms.", "ms"); err != nil {
+	if c.hrvBaselineBalancedLow, err = intGauge("garmin.sleep.hrv_baseline_balanced_low_ms", "HRV baseline balanced zone lower bound in ms.", ""); err != nil {
 		return err
 	}
-	if c.hrvBaselineBalancedUpper, err = intGauge("garmin.sleep.hrv_baseline_balanced_upper_ms", "HRV baseline balanced zone upper bound in ms.", "ms"); err != nil {
+	if c.hrvBaselineBalancedUpper, err = intGauge("garmin.sleep.hrv_baseline_balanced_upper_ms", "HRV baseline balanced zone upper bound in ms.", ""); err != nil {
 		return err
 	}
 
