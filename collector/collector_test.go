@@ -494,6 +494,10 @@ func TestTrainingCollector_EmitsReadinessFactors(t *testing.T) {
 			t.Errorf("readiness_factor_percent %s = %d, want %d", factor, got, want)
 		}
 	}
+	// RecoveryTime is 0 (fully recovered) and must still be reported.
+	if got := gaugeValue[int64](t, m, "garmin.training.readiness_recovery_seconds"); got != 0 {
+		t.Errorf("readiness_recovery_seconds = %d, want 0", got)
+	}
 }
 
 func TestIntensityCollector_EmitsWeekToDate(t *testing.T) {
@@ -551,5 +555,36 @@ func TestLactateThresholdCollector_ReadsSeparateEntries(t *testing.T) {
 	}
 	if got := gaugeValue[int64](t, m, "garmin.lactate_threshold.running_heart_rate_bpm"); got != 172 {
 		t.Errorf("running_heart_rate_bpm = %d, want 172", got)
+	}
+}
+
+func TestPersonalRecordsCollector_NamesRecordsByType(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{
+		// Garmin sends prTypeLabelKey as null; only typeId identifies the record.
+		PersonalRecords: []garminconnect.PersonalRecord{
+			{TypeID: 3, Value: 1500},
+			{TypeID: 12, Value: 25000},
+			{TypeID: 99, Value: 7},
+		},
+		PersonalRecordTypes: []garminconnect.PersonalRecordType{
+			{ID: 3, Key: "pr.label.5k.run"},
+			{ID: 12, Key: "pr.label.steps.best.day"},
+		},
+	}}
+
+	g, err := collector.NewGroup(discardLogger(), "personal_records")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	for prType, want := range map[string]float64{"5k.run": 1500, "steps.best.day": 25000, "type_99": 7} {
+		if got := attrValue[float64](t, m, "garmin.personal_records.value", "pr_type", prType); got != want {
+			t.Errorf("personal_records.value %s = %v, want %v", prType, got, want)
+		}
 	}
 }

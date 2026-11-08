@@ -231,10 +231,18 @@ func NewRefresh(client *Client, log *slog.Logger, cfg RefreshConfig) scrape.Refr
 		})
 		call("PersonalRecords", func(ctx context.Context) error {
 			v, err := gc.PersonalRecords(ctx)
-			if err == nil {
-				snap.PersonalRecords = v
+			if err != nil {
+				return err
 			}
-			return err
+			snap.PersonalRecords = v
+
+			// Records only carry a typeId; the type list names them.
+			if types, err := gc.PersonalRecordTypes(ctx); err != nil {
+				log.Debug("garmin call failed", "endpoint", "PersonalRecordTypes", "err", err)
+			} else {
+				snap.PersonalRecordTypes = types
+			}
+			return nil
 		})
 		call("RunningTolerance", func(ctx context.Context) error {
 			v, err := gc.RunningTolerance(ctx, now.AddDate(0, 0, -7), now)

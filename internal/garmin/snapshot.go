@@ -11,30 +11,31 @@ type Source interface {
 // fetch leaves the corresponding pointer nil so collectors can degrade
 // gracefully.
 type Snapshot struct {
-	Activities       *Activities
-	BloodPressure    *garminconnect.BloodPressureSummary
-	Body             *garminconnect.LatestWeightEntry
-	BodyComposition  *garminconnect.BodyComposition
-	Cycling          *garminconnect.CyclingFTP
-	Devices          []garminconnect.Device
-	FitnessAge       *garminconnect.FitnessAge
-	Gear             []garminconnect.Gear
-	GearStats        map[string]*garminconnect.GearStats
-	Goals            *Goals
-	Golf             []garminconnect.GolfScorecard
-	HeartRate        *garminconnect.HeartRates
-	Hydration        *garminconnect.HydrationData
-	Intensity        *garminconnect.IntensityMinutesData
-	LactateThreshold []garminconnect.LactateThresholdEntry
-	PersonalRecords  []garminconnect.PersonalRecord
-	Respiration      *garminconnect.RespirationData
-	RunningTolerance []garminconnect.RunningToleranceEntry
-	Sleep            *Sleep
-	SpO2             *garminconnect.SpO2Data
-	Stress           *garminconnect.StressData
-	Training         *Training
-	TrainingStatus   *garminconnect.TrainingStatusResponse
-	UserSummary      *garminconnect.UserSummary
+	Activities          *Activities
+	BloodPressure       *garminconnect.BloodPressureSummary
+	Body                *garminconnect.LatestWeightEntry
+	BodyComposition     *garminconnect.BodyComposition
+	Cycling             *garminconnect.CyclingFTP
+	Devices             []garminconnect.Device
+	FitnessAge          *garminconnect.FitnessAge
+	Gear                []garminconnect.Gear
+	GearStats           map[string]*garminconnect.GearStats
+	Goals               *Goals
+	Golf                []garminconnect.GolfScorecard
+	HeartRate           *garminconnect.HeartRates
+	Hydration           *garminconnect.HydrationData
+	Intensity           *garminconnect.IntensityMinutesData
+	LactateThreshold    []garminconnect.LactateThresholdEntry
+	PersonalRecords     []garminconnect.PersonalRecord
+	PersonalRecordTypes []garminconnect.PersonalRecordType
+	Respiration         *garminconnect.RespirationData
+	RunningTolerance    []garminconnect.RunningToleranceEntry
+	Sleep               *Sleep
+	SpO2                *garminconnect.SpO2Data
+	Stress              *garminconnect.StressData
+	Training            *Training
+	TrainingStatus      *garminconnect.TrainingStatusResponse
+	UserSummary         *garminconnect.UserSummary
 }
 
 // Activities pairs the recent-activities slice with the lifetime count, which
