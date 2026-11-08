@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
@@ -43,6 +44,12 @@ type wellnessCollector struct {
 	highStressDuration      metric.Int64ObservableGauge
 	lowStressDuration       metric.Int64ObservableGauge
 	restStressDuration      metric.Int64ObservableGauge
+	mediumStressDuration    metric.Int64ObservableGauge
+	activityStressDuration  metric.Int64ObservableGauge
+	totalStressDuration     metric.Int64ObservableGauge
+	stressTimePercent       metric.Float64ObservableGauge
+	bodyBatteryAtWake       metric.Int64ObservableGauge
+	bodyBatteryDuringSleep  metric.Int64ObservableGauge
 	bodyBatteryCharged      metric.Int64ObservableGauge
 	bodyBatteryDrained      metric.Int64ObservableGauge
 	bodyBatteryHighest      metric.Int64ObservableGauge
@@ -144,6 +151,25 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.restStressDuration, err = intGauge("garmin.wellness.rest_stress_duration_seconds", "Rest/recovery stress duration in seconds.", "s"); err != nil {
 		return err
 	}
+	if c.mediumStressDuration, err = intGauge("garmin.wellness.medium_stress_duration_seconds", "Medium stress duration in seconds.", "s"); err != nil {
+		return err
+	}
+	if c.activityStressDuration, err = intGauge("garmin.wellness.activity_stress_duration_seconds", "Time during activities, when stress isn't measured, in seconds.", "s"); err != nil {
+		return err
+	}
+	if c.totalStressDuration, err = intGauge("garmin.wellness.total_stress_duration_seconds", "Total time with a stress measurement in seconds.", "s"); err != nil {
+		return err
+	}
+	if c.stressTimePercent, err = meter.Float64ObservableGauge("garmin.wellness.stress_time_percent",
+		metric.WithDescription("Share of the day spent at each stress level."), metric.WithUnit("%")); err != nil {
+		return err
+	}
+	if c.bodyBatteryAtWake, err = intGauge("garmin.wellness.body_battery_at_wake", "Body battery value at wake time.", "{level}"); err != nil {
+		return err
+	}
+	if c.bodyBatteryDuringSleep, err = intGauge("garmin.wellness.body_battery_during_sleep", "Body battery charged during sleep.", "{level}"); err != nil {
+		return err
+	}
 	if c.bodyBatteryCharged, err = intGauge("garmin.wellness.body_battery_charged", "Body battery charged today.", "{level}"); err != nil {
 		return err
 	}
@@ -169,6 +195,8 @@ func (c *wellnessCollector) Register(meter metric.Meter, src garmin.Source) erro
 		c.minHeartRate, c.maxHeartRate, c.restingHeartRate, c.avgRestingHeartRate7Day,
 		c.avgWakingRespiration, c.highestRespiration, c.lowestRespiration,
 		c.highStressDuration, c.lowStressDuration, c.restStressDuration,
+		c.mediumStressDuration, c.activityStressDuration, c.totalStressDuration, c.stressTimePercent,
+		c.bodyBatteryAtWake, c.bodyBatteryDuringSleep,
 		c.bodyBatteryCharged, c.bodyBatteryDrained, c.bodyBatteryHighest, c.bodyBatteryLowest, c.bodyBatteryLatest,
 	)
 	return err
@@ -219,6 +247,27 @@ func (c *wellnessCollector) observe(_ context.Context, o metric.Observer) error 
 	o.ObserveInt64(c.highStressDuration, int64(s.HighStressDuration))
 	o.ObserveInt64(c.lowStressDuration, int64(s.LowStressDuration))
 	o.ObserveInt64(c.restStressDuration, int64(s.RestStressDuration))
+	o.ObserveInt64(c.mediumStressDuration, int64(s.MediumStressDuration))
+	o.ObserveInt64(c.activityStressDuration, int64(s.ActivityStressDuration))
+	o.ObserveInt64(c.totalStressDuration, int64(s.TotalStressDuration))
+	if s.TotalStressDuration > 0 {
+		for level, pct := range map[string]float64{
+			"rest":          s.RestStressPercentage,
+			"low":           s.LowStressPercentage,
+			"medium":        s.MediumStressPercentage,
+			"high":          s.HighStressPercentage,
+			"activity":      s.ActivityStressPercentage,
+			"uncategorized": s.UncategorizedStressPercentage,
+		} {
+			o.ObserveFloat64(c.stressTimePercent, pct, metric.WithAttributes(attribute.String("level", level)))
+		}
+	}
+	if s.BodyBatteryAtWakeTime > 0 {
+		o.ObserveInt64(c.bodyBatteryAtWake, int64(s.BodyBatteryAtWakeTime))
+	}
+	if s.BodyBatteryDuringSleep > 0 {
+		o.ObserveInt64(c.bodyBatteryDuringSleep, int64(s.BodyBatteryDuringSleep))
+	}
 	o.ObserveInt64(c.bodyBatteryCharged, int64(s.BodyBatteryChargedValue))
 	o.ObserveInt64(c.bodyBatteryDrained, int64(s.BodyBatteryDrainedValue))
 	if s.BodyBatteryHighestValue > 0 {

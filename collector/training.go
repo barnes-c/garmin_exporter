@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/barnes-c/garmin_exporter/internal/garmin"
@@ -22,6 +23,7 @@ type trainingCollector struct {
 	readinessSleep    metric.Int64ObservableGauge
 	readinessRecovery metric.Int64ObservableGauge
 	readinessHRVAvg   metric.Int64ObservableGauge
+	readinessFactor   metric.Int64ObservableGauge
 	vo2maxGeneric     metric.Float64ObservableGauge
 	vo2maxCycling     metric.Float64ObservableGauge
 	fitnessAge        metric.Int64ObservableGauge
@@ -64,6 +66,9 @@ func (c *trainingCollector) Register(meter metric.Meter, src garmin.Source) erro
 	if c.readinessHRVAvg, err = intGauge("garmin.training.readiness_hrv_weekly_avg_ms", "HRV weekly average used in readiness score.", "ms"); err != nil {
 		return err
 	}
+	if c.readinessFactor, err = intGauge("garmin.training.readiness_factor_percent", "Contribution of each factor to training readiness, in percent.", "%"); err != nil {
+		return err
+	}
 	if c.vo2maxGeneric, err = floatGauge("garmin.training.vo2max_generic", "VO2 Max for running/generic activities.", "mL/min/kg"); err != nil {
 		return err
 	}
@@ -93,7 +98,7 @@ func (c *trainingCollector) Register(meter metric.Meter, src garmin.Source) erro
 	}
 
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.readinessScore, c.readinessSleep, c.readinessRecovery, c.readinessHRVAvg,
+		c.readinessScore, c.readinessSleep, c.readinessRecovery, c.readinessHRVAvg, c.readinessFactor,
 		c.vo2maxGeneric, c.vo2maxCycling, c.fitnessAge,
 		c.race5KSeconds, c.race10KSeconds, c.raceHalfSeconds, c.raceMarathon,
 		c.enduranceScore, c.hillScore,
@@ -119,6 +124,16 @@ func (c *trainingCollector) observe(_ context.Context, o metric.Observer) error 
 			}
 			if r.HrvWeeklyAverage > 0 {
 				o.ObserveInt64(c.readinessHRVAvg, int64(r.HrvWeeklyAverage))
+			}
+			for factor, pct := range map[string]int{
+				"sleep_score":    r.SleepScoreFactorPercent,
+				"sleep_history":  r.SleepHistoryScore,
+				"recovery_time":  r.RecoveryTimeFactorPercent,
+				"acwr":           r.ACWRFactorPercent,
+				"hrv":            r.HRVFactorPercent,
+				"stress_history": r.StressHistoryFactorPercent,
+			} {
+				o.ObserveInt64(c.readinessFactor, int64(pct), metric.WithAttributes(attribute.String("factor", factor)))
 			}
 			break
 		}

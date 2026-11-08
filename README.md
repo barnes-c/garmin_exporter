@@ -162,6 +162,16 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.sleep.highest_respiration_bpm`                         | `sleep`            |
 | `garmin.sleep.lowest_respiration_bpm`                          | `sleep`            |
 | `garmin.sleep.avg_stress`                                      | `sleep`            |
+| `garmin.sleep.spo2_avg_percent`                                | `sleep`            |
+| `garmin.sleep.spo2_low_percent`                                | `sleep`            |
+| `garmin.sleep.spo2_high_percent`                               | `sleep`            |
+| `garmin.sleep.score` (`component`)                             | `sleep`            |
+| `garmin.sleep.need_baseline_minutes`                           | `sleep`            |
+| `garmin.sleep.need_actual_minutes`                             | `sleep`            |
+| `garmin.sleep.resting_heart_rate_bpm`                          | `sleep`            |
+| `garmin.sleep.avg_heart_rate_bpm`                              | `sleep`            |
+| `garmin.sleep.body_battery_change`                             | `sleep`            |
+| `garmin.sleep.awake_count`                                     | `sleep`            |
 | `garmin.sleep.hrv_last_night_ms`                               | `sleep`            |
 | `garmin.sleep.hrv_weekly_avg_ms`                               | `sleep`            |
 | `garmin.sleep.hrv_baseline_low_upper_ms`                       | `sleep`            |
@@ -170,12 +180,15 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.spo2.avg_percent`                                      | `spo2`             |
 | `garmin.spo2.lowest_percent`                                   | `spo2`             |
 | `garmin.spo2.seven_day_avg_percent`                            | `spo2`             |
+| `garmin.spo2.latest_percent`                                   | `spo2`             |
+| `garmin.spo2.sleep_avg_percent`                                | `spo2`             |
 | `garmin.stress.avg_level`                                      | `stress`           |
 | `garmin.stress.max_level`                                      | `stress`           |
 | `garmin.training.readiness_score`                              | `training`         |
 | `garmin.training.readiness_sleep_score`                        | `training`         |
 | `garmin.training.readiness_recovery_minutes`                   | `training`         |
 | `garmin.training.readiness_hrv_weekly_avg_ms`                  | `training`         |
+| `garmin.training.readiness_factor_percent` (`factor`)          | `training`         |
 | `garmin.training.vo2max_generic`                               | `training`         |
 | `garmin.training.vo2max_cycling`                               | `training`         |
 | `garmin.training.fitness_age_years`                            | `training`         |
@@ -192,6 +205,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.trainingstatus.aerobic_low_monthly_load`               | `trainingstatus`   |
 | `garmin.trainingstatus.aerobic_high_monthly_load`              | `trainingstatus`   |
 | `garmin.trainingstatus.anaerobic_monthly_load`                 | `trainingstatus`   |
+| `garmin.trainingstatus.paused`                                 | `trainingstatus`   |
 | `garmin.wellness.total_steps`                                  | `wellness`         |
 | `garmin.wellness.step_goal`                                    | `wellness`         |
 | `garmin.wellness.total_distance_meters`                        | `wellness`         |
@@ -213,12 +227,18 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.wellness.body_battery_lowest`                          | `wellness`         |
 | `garmin.wellness.body_battery_charged`                         | `wellness`         |
 | `garmin.wellness.body_battery_drained`                         | `wellness`         |
+| `garmin.wellness.body_battery_at_wake`                         | `wellness`         |
+| `garmin.wellness.body_battery_during_sleep`                    | `wellness`         |
 | `garmin.wellness.avg_waking_respiration_bpm`                   | `wellness`         |
 | `garmin.wellness.highest_respiration_bpm`                      | `wellness`         |
 | `garmin.wellness.lowest_respiration_bpm`                       | `wellness`         |
 | `garmin.wellness.rest_stress_duration_seconds`                 | `wellness`         |
 | `garmin.wellness.low_stress_duration_seconds`                  | `wellness`         |
 | `garmin.wellness.high_stress_duration_seconds`                 | `wellness`         |
+| `garmin.wellness.medium_stress_duration_seconds`               | `wellness`         |
+| `garmin.wellness.activity_stress_duration_seconds`             | `wellness`         |
+| `garmin.wellness.total_stress_duration_seconds`                | `wellness`         |
+| `garmin.wellness.stress_time_percent` (`level`)                | `wellness`         |
 | `garmin.wellness.moderate_intensity_minutes`                   | `wellness`         |
 | `garmin.wellness.vigorous_intensity_minutes`                   | `wellness`         |
 | `garmin.collector.up` (`collector`)                            | —                  |

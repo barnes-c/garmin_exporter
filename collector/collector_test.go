@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/barnes-c/go-garminconnect/garminconnect"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -360,5 +361,139 @@ func TestClose_NoError(t *testing.T) {
 	}
 	if err := g.Close(); err != nil {
 		t.Errorf("Close: %v", err)
+	}
+}
+
+func attrValue[N int64 | float64](t *testing.T, metrics []metricdata.Metrics, name, key, val string) N {
+	t.Helper()
+	for _, dp := range findGauge[N](t, metrics, name).DataPoints {
+		if v, ok := dp.Attributes.Value(attribute.Key(key)); ok && v.AsString() == val {
+			return dp.Value
+		}
+	}
+	t.Fatalf("metric %q has no data point with %s=%q", name, key, val)
+	return 0
+}
+
+func TestSleepCollector_EmitsScoresAndNeed(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{Sleep: &garmin.Sleep{Data: &garminconnect.SleepData{
+		DailySleepDTO: garminconnect.DailySleepDTO{
+			SleepTimeSeconds: 27000,
+			HighestSpO2Value: 99,
+			AwakeCount:       2,
+			AvgHeartRate:     52.5,
+			SleepScores: map[string]garminconnect.SleepScore{
+				"overall":        {Value: 81},
+				"deepPercentage": {Value: 90},
+				"stress":         {QualifierKey: "GOOD"},
+			},
+			SleepNeed: &garminconnect.SleepNeed{Baseline: 480, Actual: 500},
+		},
+		RestingHeartRate:  47,
+		BodyBatteryChange: 63,
+	}}}}
+
+	g, err := collector.NewGroup(discardLogger(), "sleep")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	if got := attrValue[int64](t, m, "garmin.sleep.score", "component", "overall"); got != 81 {
+		t.Errorf("score overall = %d, want 81", got)
+	}
+	if got := attrValue[int64](t, m, "garmin.sleep.score", "component", "deepPercentage"); got != 90 {
+		t.Errorf("score deepPercentage = %d, want 90", got)
+	}
+	if n := len(findGauge[int64](t, m, "garmin.sleep.score").DataPoints); n != 2 {
+		t.Errorf("score has %d data points, want 2 (components without a value are skipped)", n)
+	}
+	for name, want := range map[string]int64{
+		"garmin.sleep.need_baseline_minutes":  480,
+		"garmin.sleep.need_actual_minutes":    500,
+		"garmin.sleep.resting_heart_rate_bpm": 47,
+		"garmin.sleep.body_battery_change":    63,
+		"garmin.sleep.awake_count":            2,
+	} {
+		if got := gaugeValue[int64](t, m, name); got != want {
+			t.Errorf("%s = %d, want %d", name, got, want)
+		}
+	}
+	if got := gaugeValue[float64](t, m, "garmin.sleep.spo2_high_percent"); got != 99 {
+		t.Errorf("spo2_high_percent = %v, want 99", got)
+	}
+	if got := gaugeValue[float64](t, m, "garmin.sleep.avg_heart_rate_bpm"); got != 52.5 {
+		t.Errorf("avg_heart_rate_bpm = %v, want 52.5", got)
+	}
+}
+
+func TestWellnessCollector_EmitsStressBreakdown(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{UserSummary: &garminconnect.UserSummary{
+		TotalStressDuration:    50000,
+		MediumStressDuration:   3000,
+		ActivityStressDuration: 4000,
+		HighStressPercentage:   12.5,
+		RestStressPercentage:   40,
+		BodyBatteryAtWakeTime:  88,
+		BodyBatteryDuringSleep: 55,
+	}}}
+
+	g, err := collector.NewGroup(discardLogger(), "wellness")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	for name, want := range map[string]int64{
+		"garmin.wellness.total_stress_duration_seconds":    50000,
+		"garmin.wellness.medium_stress_duration_seconds":   3000,
+		"garmin.wellness.activity_stress_duration_seconds": 4000,
+		"garmin.wellness.body_battery_at_wake":             88,
+		"garmin.wellness.body_battery_during_sleep":        55,
+	} {
+		if got := gaugeValue[int64](t, m, name); got != want {
+			t.Errorf("%s = %d, want %d", name, got, want)
+		}
+	}
+	if got := attrValue[float64](t, m, "garmin.wellness.stress_time_percent", "level", "high"); got != 12.5 {
+		t.Errorf("stress_time_percent high = %v, want 12.5", got)
+	}
+	if got := attrValue[float64](t, m, "garmin.wellness.stress_time_percent", "level", "rest"); got != 40 {
+		t.Errorf("stress_time_percent rest = %v, want 40", got)
+	}
+}
+
+func TestTrainingCollector_EmitsReadinessFactors(t *testing.T) {
+	meter, reader := setupMeter(t)
+	src := &staticSource{snap: &garmin.Snapshot{Training: &garmin.Training{
+		Readiness: []garminconnect.TrainingReadiness{{
+			Score:                     70,
+			HRVFactorPercent:          95,
+			SleepHistoryScore:         60,
+			RecoveryTimeFactorPercent: 100,
+		}},
+	}}}
+
+	g, err := collector.NewGroup(discardLogger(), "training")
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+	if err := g.RegisterAll(meter, src); err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	m := collectMetrics(t, reader)
+	for factor, want := range map[string]int64{"hrv": 95, "sleep_history": 60, "recovery_time": 100} {
+		if got := attrValue[int64](t, m, "garmin.training.readiness_factor_percent", "factor", factor); got != want {
+			t.Errorf("readiness_factor_percent %s = %d, want %d", factor, got, want)
+		}
 	}
 }

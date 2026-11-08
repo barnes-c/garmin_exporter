@@ -21,6 +21,8 @@ type spO2Collector struct {
 	average     metric.Float64ObservableGauge
 	lowest      metric.Float64ObservableGauge
 	sevenDayAvg metric.Float64ObservableGauge
+	latest      metric.Float64ObservableGauge
+	sleepAvg    metric.Float64ObservableGauge
 }
 
 func newSpO2Collector(log *slog.Logger) (Collector, error) {
@@ -58,8 +60,25 @@ func (c *spO2Collector) Register(meter metric.Meter, src garmin.Source) error {
 		return err
 	}
 
+	c.latest, err = meter.Float64ObservableGauge(
+		"garmin.spo2.latest_percent",
+		metric.WithDescription("Most recent SpO2 reading."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+	c.sleepAvg, err = meter.Float64ObservableGauge(
+		"garmin.spo2.sleep_avg_percent",
+		metric.WithDescription("Average SpO2 percentage during sleep."),
+		metric.WithUnit("%"),
+	)
+	if err != nil {
+		return err
+	}
+
 	c.registration, err = meter.RegisterCallback(c.observe,
-		c.average, c.lowest, c.sevenDayAvg)
+		c.average, c.lowest, c.sevenDayAvg, c.latest, c.sleepAvg)
 	return err
 }
 
@@ -77,6 +96,12 @@ func (c *spO2Collector) observe(_ context.Context, o metric.Observer) error {
 	}
 	if s.LastSevenDaysAvgSpO2 > 0 {
 		o.ObserveFloat64(c.sevenDayAvg, s.LastSevenDaysAvgSpO2)
+	}
+	if s.LatestSpO2 > 0 {
+		o.ObserveFloat64(c.latest, float64(s.LatestSpO2))
+	}
+	if s.AvgSleepSpO2 > 0 {
+		o.ObserveFloat64(c.sleepAvg, s.AvgSleepSpO2)
 	}
 	return nil
 }
