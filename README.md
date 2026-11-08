@@ -234,6 +234,7 @@ All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. At
 | `garmin.wellness.moderate_intensity_minutes`                   | `wellness`          |
 | `garmin.wellness.vigorous_intensity_minutes`                   | `wellness`          |
 | `garmin.collector.up` (`collector`)                            | —                   |
+| `garmin.cache.last_refresh_timestamp_seconds`                  | —                   |
 
 See [`collector/`](collector/) for per-collector implementation.
 

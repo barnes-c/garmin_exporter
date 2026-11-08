@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
@@ -41,9 +42,11 @@ type Config[T any] struct {
 // Scraper runs Refresh on a ticker and stores the most recent successful
 // result in an atomic pointer for lock-free reads.
 type Scraper[T any] struct {
-	cfg     Config[T]
-	snap    atomic.Pointer[T]
-	outcome atomic.Pointer[Outcome]
+	cfg          Config[T]
+	snap         atomic.Pointer[T]
+	outcome      atomic.Pointer[Outcome]
+	lastSuccess  atomic.Int64 // unix seconds
+	registration metric.Registration
 }
 
 // New validates cfg and returns an idle Scraper. Call Run to start the
@@ -123,10 +126,40 @@ func (s *Scraper[T]) Refresh(ctx context.Context) error {
 		return err
 	}
 	s.snap.Store(snap)
+	s.lastSuccess.Store(time.Now().Unix())
 	s.cfg.Logger.Debug("scrape ok",
 		"scraper", s.cfg.Name,
 		"duration", out.Duration)
 	return nil
+}
+
+// Register installs a gauge named name reporting the Unix time of the last
+// successful refresh. Nothing is reported before the first success.
+func (s *Scraper[T]) Register(meter metric.Meter, name string) error {
+	gauge, err := meter.Int64ObservableGauge(name,
+		metric.WithDescription("Unix time of the last successful refresh of the "+s.cfg.Name+" cache."),
+	)
+	if err != nil {
+		return err
+	}
+	s.registration, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		if t := s.lastSuccess.Load(); t > 0 {
+			o.ObserveInt64(gauge, t)
+		}
+		return nil
+	}, gauge)
+	return err
+}
+
+// Close unregisters the callback installed by Register. Safe to call before
+// Register or after a prior Close.
+func (s *Scraper[T]) Close() error {
+	if s.registration == nil {
+		return nil
+	}
+	err := s.registration.Unregister()
+	s.registration = nil
+	return err
 }
 
 // Run drives Refresh on Config.Interval until ctx is cancelled. The first

@@ -9,6 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func discardLogger() *slog.Logger {
@@ -249,4 +252,50 @@ func TestSnapshot_ConcurrentReadsDuringRefresh(t *testing.T) {
 	}
 	close(release)
 	wg.Wait()
+}
+
+func lastRefreshPoints(t *testing.T, reader *sdkmetric.ManualReader) []metricdata.DataPoint[int64] {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name == "test.last_refresh" {
+				return m.Data.(metricdata.Gauge[int64]).DataPoints
+			}
+		}
+	}
+	return nil
+}
+
+func TestRegister_ReportsLastSuccessfulRefresh(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+
+	fail := errors.New("boom")
+	var err error
+	s, _ := New(Config[fakeSnap]{Name: "x", Logger: discardLogger(),
+		Refresh: func(context.Context) (*fakeSnap, error) { return &fakeSnap{}, err }})
+	if err := s.Register(meter, "test.last_refresh"); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	err = fail
+	_ = s.Refresh(context.Background())
+	if got := lastRefreshPoints(t, reader); len(got) != 0 {
+		t.Fatalf("got %d points before any success, want 0", len(got))
+	}
+
+	err = nil
+	before := time.Now().Unix()
+	if err := s.Refresh(context.Background()); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	got := lastRefreshPoints(t, reader)
+	if len(got) != 1 || got[0].Value < before {
+		t.Fatalf("got %v, want one point >= %d", got, before)
+	}
 }
