@@ -47,13 +47,13 @@ Configured via the standard [OTel SDK env vars](https://opentelemetry.io/docs/sp
 
 ## Metrics
 
-All metrics are gauges named `garmin.<area>.<name>` (`garmin_<area>_<name>` in Prometheus), with the unit in the name. `garmin.collector.up{collector}` reports per-collector health.
+All metrics are gauges named `garmin.<area>.<name>` (`garmin_<area>_<name>` in Prometheus), with the unit in the name. `garmin.collector.up{collector}` reports per-collector health, `garmin.cache.last_refresh_timestamp_seconds` when the Garmin data was last fetched.
 
 | Area | Metrics |
 | ------------------- | --- |
 | `activity` | `recent`, `recent_duration_seconds`, `recent_distance_meters`, `recent_kilocalories`, `last_timestamp_seconds` (by `type`); `lifetime` |
 | `blood_pressure` | `systolic_mmhg`, `diastolic_mmhg`, `pulse_bpm` |
-| `body` | `weight_grams`, `bmi`, `fat_percent`, `water_percent`, `bone_mass_grams`, `muscle_mass_grams`, `visceral_fat`, `metabolic_age_years` |
+| `body` | `weight_grams`, `bmi`, `fat_percent`, `water_percent`, `bone_mass_grams`, `muscle_mass_grams`, `visceral_fat`, `metabolic_age_years`, `last_weigh_in_timestamp_seconds` |
 | `body_composition` | Same as `body`, averaged (`*_avg`) |
 | `cycling` | `ftp_watts` |
 | `device` | `registered`, `info` (`device_id`, `name`, `status`) |
@@ -63,16 +63,16 @@ All metrics are gauges named `garmin.<area>.<name>` (`garmin_<area>_<name>` in P
 | `golf` | `last_round_score`, `last_round_to_par` |
 | `heart_rate` | `resting_bpm`, `min_bpm`, `max_bpm`, `seven_day_avg_resting_bpm` |
 | `hydration` | `intake_ml`, `goal_ml`, `daily_avg_ml`, `sweat_loss_ml`, `activity_intake_ml` |
-| `intensity` | `weekly_goal_minutes`, `weekly_moderate_minutes`, `weekly_vigorous_minutes` |
+| `intensity` | `weekly_goal_minutes`, `weekly_moderate_minutes`, `weekly_vigorous_minutes`, `weekly_total_minutes` |
 | `lactate_threshold` | `running_speed_mps`, `running_heart_rate_bpm`, `cycling_heart_rate_bpm` |
-| `personal_records` | `value` (`pr_type`, `name`) |
+| `personal_records` | `value` (`pr_type`) |
 | `respiration` | `avg_waking_bpm`, `highest_bpm`, `lowest_bpm` |
 | `running_tolerance` | `score`, `level` |
 | `sleep` | Stages (`total`/`deep`/`light`/`rem`/`awake`/`nap_seconds`), `score` (by `component`), `need_baseline_seconds`, `need_actual_seconds`, respiration, SpO2, HRV (last night, weekly, baseline), `avg_heart_rate_bpm`, `avg_stress`, `body_battery_change`, `awakenings`, `restless_moments` |
 | `spo2` | `avg_percent`, `lowest_percent`, `seven_day_avg_percent`, `latest_percent` |
 | `stress` | `avg_level`, `max_level` |
 | `training` | `readiness_score`, `readiness_recovery_seconds`, `readiness_factor_percent` (by `factor`), `vo2max_generic`, `vo2max_cycling`, race predictions (5k, 10k, half, full), `endurance_score`, `hill_score` |
-| `training_status` | `code`, `weekly_training_load`, `acwr_percent`, `acwr_ratio`, monthly loads (aerobic low/high, anaerobic), `paused` |
+| `training_status` | `code`, `info` (`status`), `weekly_training_load`, `acwr_percent`, `acwr_ratio`, monthly loads (aerobic low/high, anaerobic), `paused` |
 | `wellness` | Steps, distance, calories, activity time, floors, body battery, stress durations and `stress_time_percent` (by `level`), intensity minutes |
 
 Exact names are in [`collector/`](collector/), or just `curl localhost:10045/metrics`.

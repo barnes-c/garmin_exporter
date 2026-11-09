@@ -217,6 +217,10 @@ func main() {
 		logger.Error("Failed to create Garmin scraper", "err", err)
 		os.Exit(1)
 	}
+	if err := garminScraper.Register(otelResult.Meter, "garmin.cache.last_refresh_timestamp_seconds"); err != nil {
+		logger.Error("Failed to register scraper metrics", "err", err)
+		os.Exit(1)
+	}
 
 	// Collectors: instantiate every enabled collector, register their
 	// observable instruments on the OTel Meter, and feed them the scraper
@@ -290,6 +294,9 @@ func main() {
 	}
 	if err := authState.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "Auth state close error: %v\n", err)
+	}
+	if err := garminScraper.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Scraper close error: %v\n", err)
 	}
 	if err := otelResult.Shutdown(shutdownCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "OTel shutdown error: %v\n", err)

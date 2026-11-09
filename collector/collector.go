@@ -74,8 +74,37 @@ func Registered() []string {
 type Group struct {
 	log        *slog.Logger
 	collectors map[string]Collector
+	src        garmin.Source
 	upGauge    metric.Int64ObservableGauge
 	upCallback metric.Registration
+}
+
+// hasData reports, per collector, whether the last refresh produced the data
+// it reads. It backs garmin.collector.up; every collector needs an entry.
+var hasData = map[string]func(s *garmin.Snapshot) bool{
+	"activities":        func(s *garmin.Snapshot) bool { return s.Activities != nil },
+	"blood_pressure":    func(s *garmin.Snapshot) bool { return s.BloodPressure != nil },
+	"body":              func(s *garmin.Snapshot) bool { return s.Body != nil },
+	"body_composition":  func(s *garmin.Snapshot) bool { return s.BodyComposition != nil },
+	"cycling":           func(s *garmin.Snapshot) bool { return s.Cycling != nil },
+	"devices":           func(s *garmin.Snapshot) bool { return s.Devices != nil },
+	"fitness_age":       func(s *garmin.Snapshot) bool { return s.FitnessAge != nil },
+	"gear":              func(s *garmin.Snapshot) bool { return s.Gear != nil },
+	"goals":             func(s *garmin.Snapshot) bool { return s.Goals != nil },
+	"golf":              func(s *garmin.Snapshot) bool { return s.Golf != nil },
+	"heart_rate":        func(s *garmin.Snapshot) bool { return s.HeartRate != nil },
+	"hydration":         func(s *garmin.Snapshot) bool { return s.Hydration != nil },
+	"intensity":         func(s *garmin.Snapshot) bool { return s.Intensity != nil },
+	"lactate_threshold": func(s *garmin.Snapshot) bool { return s.LactateThreshold != nil },
+	"personal_records":  func(s *garmin.Snapshot) bool { return s.PersonalRecords != nil },
+	"respiration":       func(s *garmin.Snapshot) bool { return s.Respiration != nil },
+	"running_tolerance": func(s *garmin.Snapshot) bool { return s.RunningTolerance != nil },
+	"sleep":             func(s *garmin.Snapshot) bool { return s.Sleep != nil },
+	"spo2":              func(s *garmin.Snapshot) bool { return s.SpO2 != nil },
+	"stress":            func(s *garmin.Snapshot) bool { return s.Stress != nil },
+	"training":          func(s *garmin.Snapshot) bool { return s.Training != nil },
+	"training_status":   func(s *garmin.Snapshot) bool { return s.TrainingStatus != nil },
+	"wellness":          func(s *garmin.Snapshot) bool { return s.UserSummary != nil },
 }
 
 // NewGroup instantiates every registered collector. If filters is non-empty,
@@ -83,6 +112,12 @@ type Group struct {
 func NewGroup(logger *slog.Logger, filters ...string) (*Group, error) {
 	factoriesMu.Lock()
 	defer factoriesMu.Unlock()
+
+	for name := range factories {
+		if hasData[name] == nil {
+			return nil, fmt.Errorf("collector %s has no garmin.collector.up check", name)
+		}
+	}
 
 	filterSet := make(map[string]bool, len(filters))
 	for _, f := range filters {
@@ -118,11 +153,12 @@ func (g *Group) RegisterAll(meter metric.Meter, src garmin.Source) error {
 	if len(g.collectors) == 0 {
 		return nil
 	}
+	g.src = src
 
 	var err error
 	g.upGauge, err = meter.Int64ObservableGauge(
 		"garmin.collector.up",
-		metric.WithDescription("1 for every registered collector."),
+		metric.WithDescription("1 if the collector has data from the last refresh, 0 if its Garmin call failed or returned nothing."),
 	)
 	if err != nil {
 		return fmt.Errorf("create garmin.collector.up: %w", err)
@@ -135,8 +171,13 @@ func (g *Group) RegisterAll(meter metric.Meter, src garmin.Source) error {
 }
 
 func (g *Group) observeUp(_ context.Context, o metric.Observer) error {
+	snap := g.src.Snapshot()
 	for name := range g.collectors {
-		o.ObserveInt64(g.upGauge, 1, metric.WithAttributes(attribute.String("collector", name)))
+		var up int64
+		if snap != nil && hasData[name](snap) {
+			up = 1
+		}
+		o.ObserveInt64(g.upGauge, up, metric.WithAttributes(attribute.String("collector", name)))
 	}
 	return nil
 }
