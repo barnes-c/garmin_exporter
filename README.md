@@ -21,7 +21,7 @@ Or from source: `make build && GARMIN_USERNAME=... GARMIN_PASSWORD=... ./garmin_
 
 **MFA:** on first login the exporter prompts for a one-time code on stdin, so run it interactively once (`docker run -it`, or `stdin_open`/`tty` in Compose). The OAuth2 token is then cached to `--token-file` and refreshed automatically.
 
-See [`examples/`](examples) for Prometheus + Grafana and OTLP (Tempo, Loki) setups.
+See [`examples/`](examples) for Prometheus + Grafana and OTLP (Tempo, Loki) setups, and [`examples/dashboards`](examples/dashboards) for Grafana dashboards.
 
 ## Configuration
 
