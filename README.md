@@ -23,6 +23,8 @@ Or from source: `make build && GARMIN_USERNAME=... GARMIN_PASSWORD=... ./garmin_
 
 See [`examples/`](examples) for Prometheus + Grafana and OTLP (Tempo, Loki) setups, and [`examples/dashboards`](examples/dashboards) for Grafana dashboards.
 
+[![Today dashboard](examples/dashboards/screenshots/today.png)](examples/dashboards)
+
 ## Configuration
 
 Every flag has a `GARMIN_*` env var equivalent (e.g. `--cache.ttl` → `GARMIN_CACHE_TTL`). Prefer env vars for credentials, since flags are visible in `ps`. Run `--help` for the full list.
