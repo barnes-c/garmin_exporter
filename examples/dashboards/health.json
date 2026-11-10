@@ -1081,8 +1081,7 @@
             "mode": "fixed",
             "fixedColor": "#3987e5"
           },
-          "decimals": 0,
-          "max": 100
+          "decimals": 0
         },
         "overrides": [
           {
@@ -1367,8 +1366,7 @@
             "stacking": {
               "mode": "none"
             },
-            "barAlignment": -1,
-            "axisSoftMin": 0
+            "barAlignment": -1
           },
           "color": {
             "mode": "fixed",
@@ -1504,8 +1502,7 @@
             "stacking": {
               "mode": "none"
             },
-            "barAlignment": -1,
-            "axisSoftMin": 0
+            "barAlignment": -1
           },
           "color": {
             "mode": "fixed",
@@ -1638,15 +1635,13 @@
             "stacking": {
               "mode": "none"
             },
-            "barAlignment": -1,
-            "axisSoftMin": 0
+            "barAlignment": -1
           },
           "color": {
             "mode": "fixed",
             "fixedColor": "#3987e5"
           },
-          "decimals": 0,
-          "max": 100
+          "decimals": 0
         },
         "overrides": [
           {
@@ -1773,8 +1768,7 @@
             "stacking": {
               "mode": "none"
             },
-            "barAlignment": -1,
-            "axisSoftMin": 0
+            "barAlignment": -1
           },
           "color": {
             "mode": "fixed",
@@ -2058,12 +2052,13 @@
           ],
           "fieldConfig": {
             "defaults": {
-              "min": 0,
+              "min": 1000000000000000.0,
               "color": {
                 "mode": "fixed",
                 "fixedColor": "transparent"
               },
-              "noValue": "Only weight is recorded"
+              "noValue": "Only weight is recorded",
+              "max": 2000000000000000.0
             },
             "overrides": [
               {
