@@ -1261,8 +1261,7 @@
             "stacking": {
               "mode": "none"
             },
-            "barAlignment": -1,
-            "axisSoftMin": 0
+            "barAlignment": -1
           },
           "color": {
             "mode": "fixed",
@@ -1647,6 +1646,12 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none"
                 }
               }
             ]

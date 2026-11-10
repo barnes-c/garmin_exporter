@@ -1,244 +1,83 @@
-# Garmin Exporter
+# garmin_exporter
 
+[![Garmin Connect](https://img.shields.io/badge/Garmin%20Connect-007CC3?logo=garmin&logoColor=white)](https://connect.garmin.com)
 [![GitHub Release](https://img.shields.io/github/v/release/barnes-c/garmin_exporter)](https://github.com/barnes-c/garmin_exporter/releases/latest)
-[![Build Status](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/barnes-c/garmin_exporter/actions/workflows/ci.yml)
 [![GHCR](https://img.shields.io/badge/ghcr.io-barnes--c%2Fgarmin__exporter-blue?logo=github)](https://github.com/barnes-c/garmin_exporter/pkgs/container/garmin_exporter)
-[![Docker Hub](https://img.shields.io/docker/pulls/barnesbiz/garmin_exporter?logo=docker)](https://hub.docker.com/r/barnesbiz/garmin_exporter)
+[![License](https://img.shields.io/github/license/barnes-c/garmin_exporter)](LICENSE)
 
-OTel-native Prometheus exporter for [Garmin Connect](https://connect.garmin.com/).
-
-Listens on port **10045** by default. Authenticates with Garmin Connect via username and password (with MFA support), caches the OAuth2 token to disk, and refreshes it automatically. Exposes metrics at `/metrics`, and can additionally push metrics, traces, and logs to an OTLP endpoint.
-
-If this project is useful to you, a star on the repo would be appreciated.
+OTel-native Prometheus exporter for [Garmin Connect](https://connect.garmin.com/). Serves `/metrics` on `:10045` and can optionally push metrics, traces, and logs via OTLP.
 
 ## Quick start
 
-### Docker
-
 ```shell
-  docker run -d -p 10045:10045 \
-    -v garmin_data:/data \
-    -e GARMIN_USERNAME=you@example.com \
-    -e GARMIN_PASSWORD=yourpassword \
-    ghcr.io/barnes-c/garmin_exporter:latest \
-    --token-file=/data/garmin_token.json
+docker run -d -p 10045:10045 -v garmin_data:/data \
+  -e GARMIN_USERNAME=you@example.com \
+  -e GARMIN_PASSWORD=yourpassword \
+  ghcr.io/barnes-c/garmin_exporter:latest \
+  --token-file=/data/garmin_token.json
 ```
 
-### Binary
+Or from source: `make build && GARMIN_USERNAME=... GARMIN_PASSWORD=... ./garmin_exporter`.
 
-```shell
+**MFA:** on first login the exporter prompts for a one-time code on stdin, so run it interactively once (`docker run -it`, or `stdin_open`/`tty` in Compose). The OAuth2 token is then cached to `--token-file` and refreshed automatically.
 
-  make build
-  GARMIN_USERNAME=you@example.com GARMIN_PASSWORD=yourpassword
-  ./garmin_exporter
-```
+See [`examples/`](examples) for Prometheus + Grafana and OTLP (Tempo, Loki) setups, and [`examples/dashboards`](examples/dashboards) for Grafana dashboards.
 
-Scrape: curl localhost:10045/metrics. Probes: /healthz, /readyz.
-
-**First login**: if your account has MFA enabled, the exporter prompts for a one-time code on stdin. Run it interactively once (add stdin_open: true and tty: true in Compose); once the token is cached to `--token-file`, subsequent restarts are unattended. Prefer the `GARMIN_USERNAME` / `GARMIN_PASSWORD` environment variables over their flags. Flag values are visible to other users on the host via `ps`.
-
-### Examples
-
-Checkout the examples in [`examples/`](./examples):
-
-- [`examples/prometheus`](./examples/prometheus) — classic scrape with Prometheus + Grafana.
-- [`examples/otlp`](./examples/otlp) — OTel-first setup with Prometheus, Tempo, and Loki.
-- [`examples/dashboards`](./examples/dashboards) — Grafana dashboards (Today, Health, Training), provisioned by both setups above.
-- [`examples/otelconf.yaml`](./examples/otelconf.yaml) — examplary OTel SDK config consumed via `OTEL_CONFIG_FILE`.
+[![Today dashboard](examples/dashboards/screenshots/today.png)](examples/dashboards)
 
 ## Configuration
 
-Key flags (full list via `--help`):
+Every flag has a `GARMIN_*` env var equivalent (e.g. `--cache.ttl` → `GARMIN_CACHE_TTL`). Prefer env vars for credentials, since flags are visible in `ps`. Run `--help` for the full list.
 
-|          Flag          |           Env var           |       Default       |                           Purpose                           |
-| ---------------------- | --------------------------- | ------------------- | ----------------------------------------------------------- |
-| `--cache.ttl`          | `GARMIN_CACHE_TTL`          | `1h`                | Garmin API refresh interval; independent of scrape interval |
-| `--activity-limit`     | `GARMIN_ACTIVITY_LIMIT`     | `30`                | Number of recent activities to fetch per refresh            |
-| `--password`           | `GARMIN_PASSWORD`           | *(required)*        | Garmin Connect password                                     |
-| `--token-file`         | `GARMIN_TOKEN_FILE`         | `garmin_token.json` | Path to the cached OAuth2 token file                        |
-| `--username`           | `GARMIN_USERNAME`           | *(required)*        | Garmin Connect email address                                |
-| `--log.level`          | `GARMIN_LOG_LEVEL`          | `info`              | Log level (`debug`, `info`, `warn`, `error`)                |
-| `--web.health-path`    | `GARMIN_WEB_HEALTH_PATH`    | `/healthz`          | Liveness probe path                                         |
-| `--web.listen-address` | `GARMIN_WEB_LISTEN_ADDRESS` | `:10045`            | Listen address                                              |
-| `--web.prometheus`     | `GARMIN_WEB_PROMETHEUS`     | `true`              | Disable for OTLP-push-only deployments                      |
-| `--web.ready-path`     | `GARMIN_WEB_READY_PATH`     | `/readyz`           | Readiness probe path                                        |
-| `--web.telemetry-path` | `GARMIN_WEB_TELEMETRY_PATH` | `/metrics`          | Prometheus endpoint                                         |
+| Flag                   | Default             | Purpose                                         |
+| ---------------------- | ------------------- | ----------------------------------------------- |
+| `--username`           | *(required)*        | Garmin Connect email                            |
+| `--password`           | *(required)*        | Garmin Connect password                         |
+| `--token-file`         | `garmin_token.json` | Cached OAuth2 token                             |
+| `--cache.ttl`          | `1h`                | Garmin API refresh interval                     |
+| `--activity-limit`     | `30`                | Recent activities fetched per refresh           |
+| `--log.level`          | `info`              | `debug`, `info`, `warn`, `error`                |
+| `--web.listen-address` | `:10045`            | Listen address                                  |
+| `--web.telemetry-path` | `/metrics`          | Prometheus endpoint                             |
+| `--web.prometheus`     | `true`              | Set `false` for OTLP-push-only                  |
+| `--web.health-path`    | `/healthz`          | Liveness probe                                  |
+| `--web.ready-path`     | `/readyz`           | Readiness probe                                 |
 
-### OTel pipeline
+### OpenTelemetry
 
-The OTel pipeline is entirely environment-driven; see the [OTel SDK env var spec](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for the full list. `/metrics` is always served unless `--web.prometheus=false`.
-
-|           Variable            |                                  Purpose                                   |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `OTEL_METRICS_EXPORTER`       | Comma-separated push exporters: `otlp`, `console`, `none` (default `none`) |
-| `OTEL_TRACES_EXPORTER`        | Traces exporter: `otlp`, `console`, `none` (default `none`)                |
-| `OTEL_LOGS_EXPORTER`          | Logs exporter: `otlp`, `console`, `none` (default `none`)                  |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector endpoint, e.g. `localhost:4317`                                  |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` or `http/protobuf`                                                  |
-| `OTEL_METRIC_EXPORT_INTERVAL` | OTLP metric push interval, in ms                                           |
-| `OTEL_TRACES_SAMPLER`         | e.g. `parentbased_traceidratio`                                            |
-| `OTEL_TRACES_SAMPLER_ARG`     | Sampler argument (e.g. `0.1`)                                              |
-| `OTEL_SERVICE_NAME`           | Resource `service.name` (default `garmin_exporter`)                        |
-| `OTEL_CONFIG_FILE`            | Path to `otelconf` YAML; overrides all other `OTEL_*` vars                 |
-
-The three exporter selectors default to `none` instead of the spec default `otlp`. The OTel exporters stays silent until OTLP is opted in.
+Configured via the standard [OTel SDK env vars](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, …), or an `otelconf` YAML via `OTEL_CONFIG_FILE` ([example](examples/otelconf.yaml)). Unlike the spec, `OTEL_METRICS_EXPORTER`, `OTEL_TRACES_EXPORTER`, and `OTEL_LOGS_EXPORTER` default to `none`, so nothing is pushed until you opt in.
 
 ## Metrics
 
-All instruments are observable gauges. Naming follows `garmin.<area>.<name>`. Attributes are noted in parentheses. In Prometheus the dots become underscores (`garmin.sleep.hrv_last_night_ms` is `garmin_sleep_hrv_last_night_ms`); names already state their unit, so no unit suffix is appended.
+All metrics are gauges named `garmin.<area>.<name>` (`garmin_<area>_<name>` in Prometheus), with the unit in the name. `garmin.collector.up{collector}` reports per-collector health, `garmin.cache.last_refresh_timestamp_seconds` when the Garmin data was last fetched.
 
-|                             Metric                             |      Collector      |
-| -------------------------------------------------------------- | ------------------- |
-| `garmin.activity.recent` (`type`)                              | `activities`        |
-| `garmin.activity.recent_duration_seconds` (`type`)             | `activities`        |
-| `garmin.activity.recent_distance_meters` (`type`)              | `activities`        |
-| `garmin.activity.recent_kilocalories` (`type`)                 | `activities`        |
-| `garmin.activity.last_timestamp_seconds` (`type`)              | `activities`        |
-| `garmin.activity.lifetime`                                     | `activities`        |
-| `garmin.blood_pressure.systolic_mmhg`                          | `blood_pressure`    |
-| `garmin.blood_pressure.diastolic_mmhg`                         | `blood_pressure`    |
-| `garmin.blood_pressure.pulse_bpm`                              | `blood_pressure`    |
-| `garmin.body.weight_grams`                                     | `body`              |
-| `garmin.body.bmi`                                              | `body`              |
-| `garmin.body.fat_percent`                                      | `body`              |
-| `garmin.body.water_percent`                                    | `body`              |
-| `garmin.body.bone_mass_grams`                                  | `body`              |
-| `garmin.body.muscle_mass_grams`                                | `body`              |
-| `garmin.body.visceral_fat`                                     | `body`              |
-| `garmin.body.metabolic_age_years`                              | `body`              |
-| `garmin.body.last_weigh_in_timestamp_seconds`                  | `body`              |
-| `garmin.body_composition.weight_grams_avg`                     | `body_composition`  |
-| `garmin.body_composition.bmi_avg`                              | `body_composition`  |
-| `garmin.body_composition.fat_percent_avg`                      | `body_composition`  |
-| `garmin.body_composition.water_percent_avg`                    | `body_composition`  |
-| `garmin.body_composition.bone_mass_grams_avg`                  | `body_composition`  |
-| `garmin.body_composition.muscle_mass_grams_avg`                | `body_composition`  |
-| `garmin.body_composition.visceral_fat_avg`                     | `body_composition`  |
-| `garmin.body_composition.metabolic_age_years_avg`              | `body_composition`  |
-| `garmin.cycling.ftp_watts`                                     | `cycling`           |
-| `garmin.device.registered`                                     | `devices`           |
-| `garmin.device.info` (`device_id`, `name`, `status`)           | `devices`           |
-| `garmin.fitness_age.years`                                     | `fitness_age`       |
-| `garmin.fitness_age.chronological_years`                       | `fitness_age`       |
-| `garmin.fitness_age.achievable_years`                          | `fitness_age`       |
-| `garmin.fitness_age.previous_years`                            | `fitness_age`       |
-| `garmin.fitness_age.component_value` (`component`)             | `fitness_age`       |
-| `garmin.fitness_age.component_potential_years` (`component`)   | `fitness_age`       |
-| `garmin.gear.max_meters` (`gear_name`, `gear_type`)            | `gear`              |
-| `garmin.gear.active` (`gear_name`, `gear_type`)                | `gear`              |
-| `garmin.gear.total_distance_meters` (`gear_name`, `gear_type`) | `gear`              |
-| `garmin.gear.total_activities` (`gear_name`, `gear_type`)      | `gear`              |
-| `garmin.goals.active`                                          | `goals`             |
-| `garmin.goals.earned_badges`                                   | `goals`             |
-| `garmin.golf.last_round_score`                                 | `golf`              |
-| `garmin.golf.last_round_to_par`                                | `golf`              |
-| `garmin.heart_rate.resting_bpm`                                | `heart_rate`        |
-| `garmin.heart_rate.min_bpm`                                    | `heart_rate`        |
-| `garmin.heart_rate.max_bpm`                                    | `heart_rate`        |
-| `garmin.heart_rate.seven_day_avg_resting_bpm`                  | `heart_rate`        |
-| `garmin.hydration.intake_ml`                                   | `hydration`         |
-| `garmin.hydration.goal_ml`                                     | `hydration`         |
-| `garmin.hydration.daily_avg_ml`                                | `hydration`         |
-| `garmin.hydration.sweat_loss_ml`                               | `hydration`         |
-| `garmin.hydration.activity_intake_ml`                          | `hydration`         |
-| `garmin.intensity.weekly_goal_minutes`                         | `intensity`         |
-| `garmin.intensity.weekly_moderate_minutes`                     | `intensity`         |
-| `garmin.intensity.weekly_vigorous_minutes`                     | `intensity`         |
-| `garmin.intensity.weekly_total_minutes`                        | `intensity`         |
-| `garmin.lactate_threshold.running_speed_mps`                   | `lactate_threshold` |
-| `garmin.lactate_threshold.running_heart_rate_bpm`              | `lactate_threshold` |
-| `garmin.lactate_threshold.cycling_heart_rate_bpm`              | `lactate_threshold` |
-| `garmin.personal_records.value` (`pr_type`)                    | `personal_records`  |
-| `garmin.respiration.avg_waking_bpm`                            | `respiration`       |
-| `garmin.respiration.highest_bpm`                               | `respiration`       |
-| `garmin.respiration.lowest_bpm`                                | `respiration`       |
-| `garmin.running_tolerance.score`                               | `running_tolerance` |
-| `garmin.running_tolerance.level`                               | `running_tolerance` |
-| `garmin.sleep.total_seconds`                                   | `sleep`             |
-| `garmin.sleep.deep_seconds`                                    | `sleep`             |
-| `garmin.sleep.light_seconds`                                   | `sleep`             |
-| `garmin.sleep.rem_seconds`                                     | `sleep`             |
-| `garmin.sleep.awake_seconds`                                   | `sleep`             |
-| `garmin.sleep.nap_seconds`                                     | `sleep`             |
-| `garmin.sleep.restless_moments`                                | `sleep`             |
-| `garmin.sleep.avg_respiration_bpm`                             | `sleep`             |
-| `garmin.sleep.highest_respiration_bpm`                         | `sleep`             |
-| `garmin.sleep.lowest_respiration_bpm`                          | `sleep`             |
-| `garmin.sleep.avg_stress`                                      | `sleep`             |
-| `garmin.sleep.spo2_avg_percent`                                | `sleep`             |
-| `garmin.sleep.spo2_low_percent`                                | `sleep`             |
-| `garmin.sleep.spo2_high_percent`                               | `sleep`             |
-| `garmin.sleep.score` (`component`)                             | `sleep`             |
-| `garmin.sleep.need_baseline_seconds`                           | `sleep`             |
-| `garmin.sleep.need_actual_seconds`                             | `sleep`             |
-| `garmin.sleep.avg_heart_rate_bpm`                              | `sleep`             |
-| `garmin.sleep.body_battery_change`                             | `sleep`             |
-| `garmin.sleep.awakenings`                                      | `sleep`             |
-| `garmin.sleep.hrv_last_night_ms`                               | `sleep`             |
-| `garmin.sleep.hrv_last_night_5min_high_ms`                     | `sleep`             |
-| `garmin.sleep.hrv_weekly_avg_ms`                               | `sleep`             |
-| `garmin.sleep.hrv_baseline_low_upper_ms`                       | `sleep`             |
-| `garmin.sleep.hrv_baseline_balanced_low_ms`                    | `sleep`             |
-| `garmin.sleep.hrv_baseline_balanced_upper_ms`                  | `sleep`             |
-| `garmin.spo2.avg_percent`                                      | `spo2`              |
-| `garmin.spo2.lowest_percent`                                   | `spo2`              |
-| `garmin.spo2.seven_day_avg_percent`                            | `spo2`              |
-| `garmin.spo2.latest_percent`                                   | `spo2`              |
-| `garmin.stress.avg_level`                                      | `stress`            |
-| `garmin.stress.max_level`                                      | `stress`            |
-| `garmin.training.readiness_score`                              | `training`          |
-| `garmin.training.readiness_recovery_seconds`                   | `training`          |
-| `garmin.training.readiness_factor_percent` (`factor`)          | `training`          |
-| `garmin.training.vo2max_generic`                               | `training`          |
-| `garmin.training.vo2max_cycling`                               | `training`          |
-| `garmin.training.race_prediction_5k_seconds`                   | `training`          |
-| `garmin.training.race_prediction_10k_seconds`                  | `training`          |
-| `garmin.training.race_prediction_half_marathon_seconds`        | `training`          |
-| `garmin.training.race_prediction_marathon_seconds`             | `training`          |
-| `garmin.training.endurance_score`                              | `training`          |
-| `garmin.training.hill_score`                                   | `training`          |
-| `garmin.training_status.code`                                  | `training_status`   |
-| `garmin.training_status.info` (`status`)                       | `training_status`   |
-| `garmin.training_status.weekly_training_load`                  | `training_status`   |
-| `garmin.training_status.acwr_percent`                          | `training_status`   |
-| `garmin.training_status.acwr_ratio`                            | `training_status`   |
-| `garmin.training_status.aerobic_low_monthly_load`              | `training_status`   |
-| `garmin.training_status.aerobic_high_monthly_load`             | `training_status`   |
-| `garmin.training_status.anaerobic_monthly_load`                | `training_status`   |
-| `garmin.training_status.paused`                                | `training_status`   |
-| `garmin.wellness.total_steps`                                  | `wellness`          |
-| `garmin.wellness.step_goal`                                    | `wellness`          |
-| `garmin.wellness.total_distance_meters`                        | `wellness`          |
-| `garmin.wellness.total_kilocalories`                           | `wellness`          |
-| `garmin.wellness.active_kilocalories`                          | `wellness`          |
-| `garmin.wellness.bmr_kilocalories`                             | `wellness`          |
-| `garmin.wellness.active_seconds`                               | `wellness`          |
-| `garmin.wellness.highly_active_seconds`                        | `wellness`          |
-| `garmin.wellness.sedentary_seconds`                            | `wellness`          |
-| `garmin.wellness.sleeping_seconds`                             | `wellness`          |
-| `garmin.wellness.floors_ascended`                              | `wellness`          |
-| `garmin.wellness.floors_descended`                             | `wellness`          |
-| `garmin.wellness.floors_ascended_goal`                         | `wellness`          |
-| `garmin.wellness.body_battery_latest`                          | `wellness`          |
-| `garmin.wellness.body_battery_highest`                         | `wellness`          |
-| `garmin.wellness.body_battery_lowest`                          | `wellness`          |
-| `garmin.wellness.body_battery_charged`                         | `wellness`          |
-| `garmin.wellness.body_battery_drained`                         | `wellness`          |
-| `garmin.wellness.body_battery_at_wake`                         | `wellness`          |
-| `garmin.wellness.body_battery_during_sleep`                    | `wellness`          |
-| `garmin.wellness.rest_stress_duration_seconds`                 | `wellness`          |
-| `garmin.wellness.low_stress_duration_seconds`                  | `wellness`          |
-| `garmin.wellness.high_stress_duration_seconds`                 | `wellness`          |
-| `garmin.wellness.medium_stress_duration_seconds`               | `wellness`          |
-| `garmin.wellness.activity_stress_duration_seconds`             | `wellness`          |
-| `garmin.wellness.total_stress_duration_seconds`                | `wellness`          |
-| `garmin.wellness.stress_time_percent` (`level`)                | `wellness`          |
-| `garmin.wellness.moderate_intensity_minutes`                   | `wellness`          |
-| `garmin.wellness.vigorous_intensity_minutes`                   | `wellness`          |
-| `garmin.collector.up` (`collector`)                            | —                   |
-| `garmin.cache.last_refresh_timestamp_seconds`                  | —                   |
+| Area | Metrics |
+| ------------------- | --- |
+| `activity` | `recent`, `recent_duration_seconds`, `recent_distance_meters`, `recent_kilocalories`, `last_timestamp_seconds` (by `type`); `lifetime` |
+| `blood_pressure` | `systolic_mmhg`, `diastolic_mmhg`, `pulse_bpm` |
+| `body` | `weight_grams`, `bmi`, `fat_percent`, `water_percent`, `bone_mass_grams`, `muscle_mass_grams`, `visceral_fat`, `metabolic_age_years`, `last_weigh_in_timestamp_seconds` |
+| `body_composition` | Same as `body`, averaged (`*_avg`) |
+| `cycling` | `ftp_watts` |
+| `device` | `registered`, `info` (`device_id`, `name`, `status`) |
+| `fitness_age` | `years`, `chronological_years`, `achievable_years`, `previous_years`, `component_value`, `component_potential_years` (by `component`) |
+| `gear` | `max_meters`, `active`, `total_distance_meters`, `total_activities` (by `gear_name`, `gear_type`) |
+| `goals` | `active`, `earned_badges` |
+| `golf` | `last_round_score`, `last_round_to_par` |
+| `heart_rate` | `resting_bpm`, `min_bpm`, `max_bpm`, `seven_day_avg_resting_bpm` |
+| `hydration` | `intake_ml`, `goal_ml`, `daily_avg_ml`, `sweat_loss_ml`, `activity_intake_ml` |
+| `intensity` | `weekly_goal_minutes`, `weekly_moderate_minutes`, `weekly_vigorous_minutes`, `weekly_total_minutes` |
+| `lactate_threshold` | `running_speed_mps`, `running_heart_rate_bpm`, `cycling_heart_rate_bpm` |
+| `personal_records` | `value` (`pr_type`) |
+| `respiration` | `avg_waking_bpm`, `highest_bpm`, `lowest_bpm` |
+| `running_tolerance` | `score`, `level` |
+| `sleep` | Stages (`total`/`deep`/`light`/`rem`/`awake`/`nap_seconds`), `score` (by `component`), `need_baseline_seconds`, `need_actual_seconds`, respiration, SpO2, HRV (last night, weekly, baseline), `avg_heart_rate_bpm`, `avg_stress`, `body_battery_change`, `awakenings`, `restless_moments` |
+| `spo2` | `avg_percent`, `lowest_percent`, `seven_day_avg_percent`, `latest_percent` |
+| `stress` | `avg_level`, `max_level` |
+| `training` | `readiness_score`, `readiness_recovery_seconds`, `readiness_factor_percent` (by `factor`), `vo2max_generic`, `vo2max_cycling`, race predictions (5k, 10k, half, full), `endurance_score`, `hill_score` |
+| `training_status` | `code`, `info` (`status`), `weekly_training_load`, `acwr_percent`, `acwr_ratio`, monthly loads (aerobic low/high, anaerobic), `paused` |
+| `wellness` | Steps, distance, calories, activity time, floors, body battery, stress durations and `stress_time_percent` (by `level`), intensity minutes |
 
-See [`collector/`](collector/) for per-collector implementation.
+Exact names are in [`collector/`](collector/), or just `curl localhost:10045/metrics`.
 
 ## Development
 
@@ -247,6 +86,8 @@ make all       # fmt, vet, lint, build, test
 make test      # go test -race ./...
 make snapshot  # local goreleaser build
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
