@@ -35,8 +35,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.34.0 h1:vzlTzzi4tHLa/JQdIE5LeXw6SEX
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.34.0/go.mod h1:FHXQZnW5pA0txiMr3jApv9uNJzZ+7mYZd+u+PPenCFU=
 github.com/jpillora/backoff v1.1.0 h1:9LWA6DCcU2qxTLK7iOxvuIQvuIe/twLJHryAcA3JFAs=
 github.com/jpillora/backoff v1.1.0/go.mod h1:InzEM6zwRZT3SOZRzyrihzVj4k8KKFicc+XgkyHOgNM=
-github.com/klauspost/compress v1.20.4 h1:dD0v/bvxtjCBqQu6sx1TNWkalEY5lNTIe+HY9w8TeNI=
-github.com/klauspost/compress v1.20.4/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
+github.com/klauspost/compress v1.20.5 h1:rJj5VjH4xQxbnLphg6eqUcDxRFCw1jpMdDY9qXlrwSs=
+github.com/klauspost/compress v1.20.5/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/mdlayher/socket v0.8.0 h1:1lIVvHAs3sT623kPkPDa+I0nLVusskwnpWzp6ZUcNyc=
@@ -78,8 +78,8 @@ github.com/xhit/go-str2duration/v2 v2.2.0 h1:SofrD1D+8IuhhkP+OiG1ij4Zq+FiiYSEY/s
 github.com/xhit/go-str2duration/v2 v2.2.0/go.mod h1:ohY8p+0f07DiV6Em5LKB0s2YpLtXVyJfNt1+BlmyAsU=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
-go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
+go.opentelemetry.io/auto/sdk v1.2.2 h1:ErNn7NW2t1F9CFBLb9iyPMyLRbcEd07l5m/StCe9AEE=
+go.opentelemetry.io/auto/sdk v1.2.2/go.mod h1:Ca3X8ec6gdTYjAirla//dnp05ECtQPfN4Ut74OJLVsQ=
 go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 h1:/CdgE52i1OEPHhsGUqrggYNRaZy4v4YgVenGd52dRBI=
 go.opentelemetry.io/contrib/bridges/otelslog v0.21.0/go.mod h1:9pBdbVbuehIDzxN4accnzzxEUPT8Nq7grbZMo+J1VN4=
 go.opentelemetry.io/contrib/bridges/prometheus v0.72.0 h1:OUIUu7ovHCEvG4IE5LQd2PNBH2eVYh50w/1ROwHEM7M=
